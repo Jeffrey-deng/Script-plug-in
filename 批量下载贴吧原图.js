@@ -1,28 +1,45 @@
+
 // ==UserScript==
 // @name        批量下载贴吧原图
 // @name:zh     批量下载贴吧原图
 // @name:en     Batch srcImage downloader for tieba
-// @version     1.4
+// @version     1.5
 // @description   一键批量下载贴吧中一页的原图
 // @description:zh  一键批量下载贴吧中一页的原图
 // @description:en  Batch Download Src Image From Baidu Tieba
 // @supportURL  http://imcoder.site/article.do?method=detail&aid=124
 // @match       http://tieba.baidu.com/*
 // @match       https://tieba.baidu.com/*
-// @include     http://tieba.baidu.com/*
-// @include     https://tieba.baidu.com/*
+// @match       http://imgsrc.baidu.com/*
+// @match       https://imgsrc.baidu.com/*
 // @require 	http://code.jquery.com/jquery-latest.js
 // @author      Jeffrey.Deng
 // @namespace https://greasyfork.org/users/129338
 // ==/UserScript==
 
+// @weibo       http://weibo.com/3983281402
+// @blog        http://imcoder.site
+// @date        2017.6.3
 
-//更新日志
-// V 1.4 ：  更新对 https 的支持 ； 增大图片匹配成功率
+// @更新日志
+// V 1.5        2017.6.4       1.增加右键新标签打开图片直接打开原图
+// V 1.4        2017.6.3       1.更新对 https 的支持
+//                             2.提高图片匹配成功率
 
+
+//右键新标签打开图片直接打开原图
+var url = document.location.toString();
+var m = null;
+if( !(m = url.match(/^https?:\/\/imgsrc\.baidu\.com\/forum\/pic\/item\/.+/i)) ){
+	if( (m = url.match(/^(https?):\/\/(?:imgsrc|imgsa|\w+\.hiphotos)\.(?:bdimg|baidu)\.com\/(?:forum|album)\/.+\/(\w+\.(?:jpg|jpeg|gif|png|bmp|webp))(?:\?.+)?$/i)) ){
+		document.location = m[1] + "://imgsrc.baidu.com/forum/pic/item/" + m[2];
+	}
+}
+
+//下载图片的过滤宽度
 var width = 100;
 var height = 100;
-var srchost = "https://imgsa.baidu.com/forum/pic/item";
+var srchost = "http://imgsrc.baidu.com/forum/pic/item";
 
 (function(){
     var rightParent = null;
@@ -44,7 +61,7 @@ var srchost = "https://imgsa.baidu.com/forum/pic/item";
     }
 
     $('#batchDownloadBtn').click(function(){
-	batchDownload();
+	    batchDownload();
     });
 })();
 
