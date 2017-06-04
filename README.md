@@ -1,6 +1,12 @@
 # script
 Script plug-in for Tampermonkey
 
+----
+
+ V1.4 ：  更新对 https 的支持 ； 增大图片匹配成功率
+ 
+----
+
 由于贴吧图片都是压缩的，右键原图下载又麻烦
 就写了一个批量下载贴吧原图的JS脚本
 需要配合chrome扩展 Tampermonkey 使用（firefox 为 油猴）
