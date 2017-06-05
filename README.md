@@ -2,6 +2,14 @@
 Script plug-in for Tampermonkey
 
 ----
+#### V 1.8  &emsp;&emsp;  2018.8.31
+
+ 1.修复BUG
+ 2.可自定义输入文件名后缀
+ 
+#### V 1.7  &emsp;&emsp;  2017.6.9
+
+ 1.修复魅族等贴吧下载图标不显示的问题
 
 #### V 1.6  &emsp;&emsp;  2017.6.5
 
