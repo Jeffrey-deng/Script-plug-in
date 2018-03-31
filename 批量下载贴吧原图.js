@@ -2,7 +2,7 @@
 // @name        批量下载贴吧原图
 // @name:zh     批量下载贴吧原图
 // @name:en     Batch srcImage downloader for tieba
-// @version     1.9
+// @version     2.0
 // @description   一键批量下载贴吧中一页的原图
 // @description:zh  一键批量下载贴吧中一页的原图
 // @description:en  Batch Download Src Image From Baidu Tieba
@@ -22,7 +22,9 @@
 // @date        2017.6.3
 
 // @更新日志
-// V 1.9        2018.4.1      1.新增打包下载,图片重命名（需开启浏览器跨域）
+// V 2.0        2018.4.1       1.压缩包内增加贴子地址txt
+//                             2.修复https不能下载
+// V 1.9        2018.4.1       1.新增打包下载,图片重命名（需开启浏览器跨域）
 // V 1.8        2018.3.31      1.修复BUG
 //                             2.可自定义输入文件名后缀
 // V 1.7        2017.6.9       1.修复魅族等贴吧下载图标不显示的问题
@@ -39,12 +41,41 @@
     //下载图片的过滤宽度
     var width = 100;
     var height = 100;
-    var srchost = "http://imgsrc.baidu.com/forum/pic/item";
+    var srchost = (document.location.href.indexOf("https") == -1 ? "http" : "https") + "://imgsrc.baidu.com/forum/pic/item";
 
     var special_tieba_name = "";
     var is_special_tieba = false;
 
     var common_utils = (function(document, $) {
+        function parseURL(url) {
+            var a = document.createElement('a');
+            a.href = url;
+            return {
+                source: url,
+                protocol: a.protocol.replace(':', ''),
+                host: a.hostname,
+                port: a.port,
+                query: a.search,
+                params: (function () {
+                    var ret = {},
+                        seg = a.search.replace(/^\?/, '').split('&'),
+                        len = seg.length, i = 0, s;
+                    for (; i < len; i++) {
+                        if (!seg[i]) {
+                            continue;
+                        }
+                        s = seg[i].split('=');
+                        ret[s[0]] = s[1];
+                    }
+                    return ret;
+                })(),
+                file: (a.pathname.match(/\/([^\/?#]+)$/i) || [, ''])[1],
+                hash: a.hash.replace('#', ''),
+                path: a.pathname.replace(/^([^\/])/, '/$1'),
+                relative: (a.href.match(/tps?:\/\/[^\/]+(.+)/) || [, ''])[1],
+                segments: a.pathname.replace(/^\//, '').split('/')
+            };
+        }
         function ajaxDownload(url, callback, args) {
             try {
                 var xhr = new XMLHttpRequest();
@@ -78,7 +109,7 @@
             } else {
                 aLink.download = url.substring(url.lastIndexOf('/') + 1);
             }
-            aLink.target = "_blank";
+            //aLink.target = "_blank";
             aLink.style = "display:none;";
             var blob = new Blob([content]);
             aLink.href = URL.createObjectURL(blob);
@@ -116,7 +147,8 @@
             "ajaxDownload": ajaxDownload,
             "fileNameFromHeader": fileNameFromHeader,
             "downloadBlobFile": downloadBlobFile,
-            "downloadUrlFile": downloadUrlFile
+            "downloadUrlFile": downloadUrlFile,
+            "parseURL": parseURL
         };
         return context;
     })(document, jQuery);
@@ -138,7 +170,7 @@
             var postDiv = $.merge(postDiv_1, postDiv_2);
 
             $(postDiv).find('img').each(function (i, img) {
-                var url = $(img).attr('src');
+                var url = img.src;
                 var m = null;
                 var srcUrl = "";
                 if ($(img).width() < width) {
@@ -171,18 +203,18 @@
                 if (is_special_tieba) {
                     suffix = changeSuffix(arr);
                 }
-                var location_url = document.location.href.replace("#", "");
-                var start = location_url.lastIndexOf("/") + 1;
-                var end = location_url.lastIndexOf("?");
-                var tie_id = (end != -1 ?  location_url.substring(start, end) : location_url.substring(start));
+                var location_info = common_utils.parseURL(document.location.href);
+                var tie_id = location_info.file;
+                var pn = location_info.params.pn || 1;
                 if (type == 1) {
                     download(arr,tie_id, suffix);
                 } else {
-                    zipPhotosAndDownload(arr, tie_id, suffix);
+                    zipPhotosAndDownload(arr, tie_id, pn, suffix);
                 }
             }
         } catch (e) {
             console.log("批量下载贴吧原图 出现错误！");
+            console.log(e);
         }
 
     }
@@ -206,17 +238,18 @@
         }, 100);
     }
 
-    var zipPhotosAndDownload = function (arr, tie_id, suffix) {
+    var zipPhotosAndDownload = function (arr, tie_id, pn, suffix) {
         if (arr && arr.length > 0) {
             var zip = new JSZip();
-            var zipFileName = "zip_" + tie_id;
+            var zipFileName = "tie_" + tie_id + (pn == 1 ? "" : ("_" + pn));
             var folder = zip.folder(zipFileName);
             var zipLength = 0;
             var prefix = tie_id;
             for (var i = 0, maxIndex = arr.length; i < maxIndex; i++) {
-                common_utils.ajaxDownload(arr[i], function (blob, url) {
-                    suffix = suffix || url.substring(url.lastIndexOf('.') + 1);
-                    var photoName = prefix + "_" + (zipLength + 1) + "." + suffix;
+                folder.file("tie_info.txt", "url：" + document.location.href + "\r\n" + "title：" + document.title.replace("_百度贴吧", "") + "\r\n" + "size：" + arr.length + "\r\n" + "page：" + pn);
+                common_utils.ajaxDownload(arr[i], function (blob, args) {
+                    suffix = suffix || args[0].substring(args[0].lastIndexOf('.') + 1);
+                    var photoName = prefix + "_" + (args[1] + 1) + "." + suffix;
                     folder.file(photoName, blob);
                     zipLength++;
                     if (zipLength >= maxIndex) {
@@ -225,7 +258,7 @@
                         });
                         alert("下载完成！");
                     }
-                }, arr[i]);
+                }, [arr[i], i]);
             }
         }
     };
@@ -284,8 +317,10 @@
     }
 
     $('#batchDownloadBtn').click(function () {
-        var type=prompt("请输入下载方式： 1：兼容方式，2：zip打包下载（需浏览器开启跨域）","1");
-        batchDownload(type);
+        var type = prompt("请输入下载方式： 1：兼容方式，2：zip打包下载（需浏览器开启跨域）","2");
+        if (type != null) {
+            batchDownload(type);
+        }
     });
 
 })(document, jQuery);
