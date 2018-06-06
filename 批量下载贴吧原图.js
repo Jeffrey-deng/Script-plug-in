@@ -2,26 +2,32 @@
 // @name        批量下载贴吧原图
 // @name:zh     批量下载贴吧原图
 // @name:en     Batch srcImage downloader for tieba
-// @version     2.0
-// @description   一键批量下载贴吧中一页的原图
-// @description:zh  一键批量下载贴吧中一页的原图
+// @version     2.3
+// @description   一键打包下载贴吧中一页的原图
+// @description:zh  一键打包下载贴吧中一页的原图
 // @description:en  Batch Download Src Image From Baidu Tieba
-// @supportURL  http://imcoder.site/article.do?method=detail&aid=124
+// @supportURL  https://imcoder.site/article.do?method=detail&aid=124
 // @match       http://tieba.baidu.com/*
 // @match       https://tieba.baidu.com/*
 // @match       http://imgsrc.baidu.com/*
 // @match       https://imgsrc.baidu.com/*
-// @require 	http://code.jquery.com/jquery-latest.js
+// @grant       GM_xmlHttpRequest
+// @grant       GM.xmlHttpRequest
+// @grant       GM_notification
+// @require 	https://code.jquery.com/jquery-latest.min.js
 // @require 	https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @author      Jeffrey.Deng
 // @namespace https://greasyfork.org/users/129338
 // ==/UserScript==
 
 // @weibo       http://weibo.com/3983281402
-// @blog        http://imcoder.site
+// @blog        https://imcoder.site
 // @date        2017.6.3
 
 // @更新日志
+// V 2.3        2018.5.31      1.兼容edge
+// V 2.2        2018.4.7       1.调整匹配图片策略
+// V 2.1        2018.4.2       1.调用Tampermonkey API 实现跨域下载，无需修改启动参数
 // V 2.0        2018.4.1       1.压缩包内增加贴子地址txt
 //                             2.修复https不能下载
 // V 1.9        2018.4.1       1.新增打包下载,图片重命名（需开启浏览器跨域）
@@ -34,17 +40,6 @@
 //                             2.提高图片匹配成功率
 
 (function (document, $) {
-
-    //右键新标签打开图片直接打开原图
-    initRightClickOpenSource();
-
-    //下载图片的过滤宽度
-    var width = 100;
-    var height = 100;
-    var srchost = (document.location.href.indexOf("https") == -1 ? "http" : "https") + "://imgsrc.baidu.com/forum/pic/item";
-
-    var special_tieba_name = "";
-    var is_special_tieba = false;
 
     var common_utils = (function(document, $) {
         function parseURL(url) {
@@ -77,7 +72,26 @@
             };
         }
         function ajaxDownload(url, callback, args) {
-            try {
+            var GM_download = GM.xmlHttpRequest || GM_xmlHttpRequest;
+            GM_download({
+                method: 'GET',
+                responseType: 'blob',
+                url: url,
+                onreadystatechange: function(responseDetails) {
+                    if (responseDetails.readyState === 4) {
+                        if (responseDetails.status === 200 || responseDetails.status === 0) {
+                            callback(responseDetails.response, args);
+                        } else {
+                            callback(null, args);
+                        }
+                    }
+                },
+                onerror: function(responseDetails) {
+                    callback(null, args);
+                    console.log(responseDetails.status);
+                }
+            });
+            /*try {
                 var xhr = new XMLHttpRequest();
                 xhr.open('GET', url, true);
                 xhr.responseType = "blob";
@@ -85,13 +99,15 @@
                     if (xhr.readyState === 4) {
                         if (xhr.status === 200 || xhr.status === 0) {
                             callback(xhr.response, args);
+                        } else {
+                            callback(null, args);
                         }
                     }
                 };
                 xhr.send();
             } catch (e) {
-                callback(null, null);
-            }
+                callback(null, args);
+            }*/
         }
         function fileNameFromHeader(disposition, url) {
             var result = null;
@@ -102,26 +118,25 @@
             return url.substring(url.lastIndexOf('/') + 1);
         }
         function downloadBlobFile(content, fileName) {
-            //saveAs(content, fileName);
-            var aLink = document.createElement('a');
-            if (fileName) {
+            if ('msSaveOrOpenBlob' in navigator) {
+                navigator.msSaveOrOpenBlob(content, fileName);
+            } else {
+                var aLink = document.createElement('a');
                 aLink.download = fileName;
-            } else {
-                aLink.download = url.substring(url.lastIndexOf('/') + 1);
+                aLink.style = "display:none;";
+                var blob = new Blob([content]);
+                aLink.href = window.URL.createObjectURL(blob);
+                document.body.appendChild(aLink);
+                if (document.all) {
+                    aLink.click(); //IE
+                } else {
+                    var evt = document.createEvent("MouseEvents");
+                    evt.initEvent("click", true, true);
+                    aLink.dispatchEvent(evt); // 其它浏览器
+                }
+                window.URL.revokeObjectURL(aLink.href);
+                document.body.removeChild(aLink);
             }
-            //aLink.target = "_blank";
-            aLink.style = "display:none;";
-            var blob = new Blob([content]);
-            aLink.href = URL.createObjectURL(blob);
-            document.body.appendChild(aLink);
-            if(document.all) {
-                aLink.click(); //IE
-            } else {
-                var evt = document.createEvent("MouseEvents");
-                evt.initEvent("click", true, true);
-                aLink.dispatchEvent(evt ); // 其它浏览器
-            }
-            document.body.removeChild(aLink);
         }
         function downloadUrlFile(url, fileName) {
             var aLink = document.createElement('a');
@@ -153,83 +168,76 @@
         return context;
     })(document, jQuery);
 
-    function changeSuffix(arr) {
-        var suffix = prompt("请输入你的想要的后缀：", "png");
-        for (var i = 0; i < arr.length; i++) {
-            arr[i] = arr[i].substring(0, arr[i].lastIndexOf('.') + 1) + suffix;
+    var location_info = common_utils.parseURL(document.location.href);
+    var options = {
+        "type": 2,
+        "suffix": null,
+        "callback" : {
+            "parsePhotos_callback": function (location_info, options) {
+                var photos = [];
+                return photos;
+            },
+            "makeNames_callback": function (arr, location_info, options) {
+                var names = {};
+                var time = new Date().getTime();
+                names.zipName = "pack_" + time;
+                names.folderName = names.zipName;
+                names.infoName = null;
+                names.infoValue = null;
+                names.prefix = time;
+                names.suffix = options.suffix;
+                return names;
+            },
+            "beforeFileDownload_callback": function(photos, location_info, options, zip, main_folder) {
+            },
+            "eachFileOnload_callback": function(blob, photo, location_info, options, zipFileLength, zip, main_folder, folder) {
+            }
         }
-        return suffix;
-    }
+    };
 
     /** 批量下载 **/
-    function batchDownload(type) {
+    function batchDownload(config) {
         try {
-            var arr = [];
-            var postDiv_1 = $('.post_bubble_middle');
-            var postDiv_2 = $('.d_post_content');
-            var postDiv = $.merge(postDiv_1, postDiv_2);
-
-            $(postDiv).find('img').each(function (i, img) {
-                var url = img.src;
-                var m = null;
-                var srcUrl = "";
-                if ($(img).width() < width) {
-                    return true;
-                } else if ($(img).attr('class') === 'BDE_Image' && $(img).attr('pic_type') === "0") {
-                    var filename = url.substring(url.lastIndexOf('/'));
-                    arr.push(srchost + filename);
-                } else if ((m = url.match(/^(https?):\/\/(?:imgsrc|imgsa|\w+\.hiphotos)\.(?:bdimg|baidu)\.com\/(?:forum|album)\/.+\/(\w+\.(?:jpg|jpeg|gif|png|bmp|webp))(?:\?.+)?$/i))) {
-                    //pic_type这时失效了，所以要正则判断地址是否为用户上传图片地址格式
-                    arr.push(srchost + "/" + m[2]);
-                }
-            });
-
-            if (arr.length === 0) {
-                if (confirm("未检测到图片，是否切换匹配方式查找")) {
-                    var postDiv_3 = $('.d_post_content_main');
-                    var postDiv_Max = $.merge(postDiv, postDiv_3);
-                    $(postDiv_Max).find('img').each(function (i, img) {
-                        var m = $(img).attr('src').match(/^(https?):\/\/(?:imgsrc|imgsa|\w+\.hiphotos)\.(?:bdimg|baidu)\.com\/(?:forum|album)\/.+\/(\w+\.(?:jpg|jpeg|gif|png|bmp|webp))(?:\?.+)?$/i);
-                        if ($(img).attr('class') === 'BDE_Image' && $(img).width() >= width && m !== null) {
-                            var srcUrl = srchost + "/" + m[2];
-                            arr.push(srcUrl);
-                        }
-                    });
-                }
+            $.extend(true, options, config);
+            var photos = [];
+            if (options.callback.parsePhotos_callback) {
+                photos = options.callback.parsePhotos_callback(location_info, options);
             }
 
-            if (confirm("是否下载 " + arr.length + " 张图片")) {
-                var suffix = null;
-                if (is_special_tieba) {
-                    suffix = changeSuffix(arr);
+            if (photos && photos.length > 0) {
+                if (confirm("是否下载 " + photos.length + " 张图片")) {
+                    var names = options.callback.makeNames_callback(photos, location_info, options);
+                    if (options.type == 1) {
+                        urlDownload(photos, names, location_info, options);
+                    } else {
+                        ajaxDownloadAndZipPhotos(photos, names, location_info, options);
+                    }
                 }
-                var location_info = common_utils.parseURL(document.location.href);
-                var tie_id = location_info.file;
-                var pn = location_info.params.pn || 1;
-                if (type == 1) {
-                    download(arr,tie_id, suffix);
-                } else {
-                    zipPhotosAndDownload(arr, tie_id, pn, suffix);
-                }
+            } else {
+                GM_notification({text: "未匹配到图片", title: "错误", highlight : true});
             }
         } catch (e) {
-            console.log("批量下载贴吧原图 出现错误！");
+            console.log("批量下载照片 出现错误！");
+            GM_notification("批量下载照片 出现错误！", "");
             console.log(e);
         }
 
     }
 
     /** 下载 **/
-    function download(arr, tie_id, suffix) {
-        var prefix = tie_id;
-        var index =  0;
+    function urlDownload(photos, names, location_info, options) {
+        GM_notification("开始下载～", names.zipName);
+        var index = 0;
         var interval = setInterval(function () {
-            if (index <  arr.length) {
-                if (!suffix) {
-                    suffix = url.substring(url.lastIndexOf('.') + 1);
+            if (index < photos.length) {
+                var url = photos[index].url;
+                var fileName = null;
+                if (!names.suffix) {
+                    fileName = names.prefix + "_" + (index + 1) + url.substring(url.lastIndexOf('.'));
+                } else {
+                    fileName = names.prefix + "_" + (index + 1) + "." + names.suffix;
                 }
-                var fileName = prefix + "_" + (index + 1) + "." + suffix;
-                common_utils.downloadUrlFile(arr[index], fileName);
+                common_utils.downloadUrlFile(url, fileName);
             } else {
                 clearInterval(interval);
                 return;
@@ -238,27 +246,37 @@
         }, 100);
     }
 
-    var zipPhotosAndDownload = function (arr, tie_id, pn, suffix) {
-        if (arr && arr.length > 0) {
+    var ajaxDownloadAndZipPhotos = function (photos, names, location_info, options) {
+        GM_notification("开始下载～", names.zipName);
+        if (photos && photos.length > 0) {
             var zip = new JSZip();
-            var zipFileName = "tie_" + tie_id + (pn == 1 ? "" : ("_" + pn));
-            var folder = zip.folder(zipFileName);
-            var zipLength = 0;
-            var prefix = tie_id;
-            for (var i = 0, maxIndex = arr.length; i < maxIndex; i++) {
-                folder.file("tie_info.txt", "url：" + document.location.href + "\r\n" + "title：" + document.title.replace("_百度贴吧", "") + "\r\n" + "size：" + arr.length + "\r\n" + "page：" + pn);
-                common_utils.ajaxDownload(arr[i], function (blob, args) {
-                    suffix = suffix || args[0].substring(args[0].lastIndexOf('.') + 1);
-                    var photoName = prefix + "_" + (args[1] + 1) + "." + suffix;
-                    folder.file(photoName, blob);
-                    zipLength++;
-                    if (zipLength >= maxIndex) {
-                        zip.generateAsync({type: "blob"}).then(function (content) {
-                            common_utils.downloadBlobFile(content, zipFileName + ".zip");
-                        });
-                        alert("下载完成！");
+            var main_folder = zip.folder(names.folderName);
+            var zipFileLength = 0;
+            if (names.infoName) {
+                main_folder.file(names.infoName, names.infoValue);
+            }
+            options.callback.beforeFileDownload_callback(photos, names, location_info, options, zip, main_folder);
+            for (var i = 0, maxIndex = photos.length; i < maxIndex; i++) {
+                common_utils.ajaxDownload(photos[i].url, function (blob, photo) {
+                    var folder = photo.location ? main_folder.folder(photo.location) : main_folder;
+                    var isSave = options.callback.eachFileOnload_callback(blob, photo, location_info, options, zipFileLength, zip, main_folder, folder);
+                    if (isSave != false) {
+                        if (photo.fileName) {
+                            folder.file(photo.fileName, blob);
+                        } else {
+                            var suffix = names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1);
+                            var photoName = names.prefix + "_" + photo.folder_sort_index + "." + suffix;
+                            folder.file(photoName, blob);
+                        }
                     }
-                }, [arr[i], i]);
+                    zipFileLength++;
+                    if (zipFileLength >= maxIndex) {
+                        zip.generateAsync({type: "blob"}).then(function (content) {
+                            common_utils.downloadBlobFile(content, names.zipName + ".zip");
+                        });
+                        GM_notification({text: "打包下载完成！", title: names.zipName, highlight : true});
+                    }
+                }, photos[i]);
             }
         }
     };
@@ -274,16 +292,10 @@
         }
     }
 
-
     /*** start main ***/
 
-    /*
-      var tiebaname = $('.card_title_fname').html();
-      if( tiebaname.indexOf(special_tieba_name) >= 0  ){
-        is_special_tieba = true;
-       }
-    */
-    is_special_tieba = true;
+    //右键新标签打开图片直接打开原图
+    initRightClickOpenSource();
 
     var rightParent = null;
     var html = "";
@@ -317,10 +329,86 @@
     }
 
     $('#batchDownloadBtn').click(function () {
-        var type = prompt("请输入下载方式： 1：兼容方式，2：zip打包下载（需浏览器开启跨域）","2");
-        if (type != null) {
-            batchDownload(type);
-        }
+          unsafeWindow.tiebaImagesDownload();
     });
+
+    unsafeWindow.tiebaImagesDownload = function (options) {
+        var config = {
+            "type": 2,
+            "minWidth": 100,
+            "suffix": null,
+            "source_host": (document.location.href.indexOf("https") == -1 ? "http" : "https") + "://imgsrc.baidu.com/forum/pic/item/",
+            "callback": {
+                "parsePhotos_callback": function (location_info, options) {
+                    var photo_arr = [];
+                    var part_nodes_one = $('.d_post_content,.d_post_content_main').find("img");
+                    //var part_nodes_two = $('.d_post_content_main,.post_bubble_middle,.d_post_content').find("img");
+                    $.each(part_nodes_one, function(i, img){
+                        // 如果是广告图片则跳过
+                        if (img.parentNode.tagName == "A" && img.parentNode.className.indexOf("j_click_stats") != -1 ) {
+                            return true;
+                        }
+                        if(img.clientWidth >= options.minWidth) {
+                            if (img.className == "BDE_Image" || img.className == "d_content_img") {
+                                var photo = {};
+                                photo.location = "";
+                                var thumb_url = img.src;
+                                photo.folder_sort_index = photo_arr.length + 1;
+                                // 如果是用户上传的图片
+                                if (img.getAttribute("pic_type") == "0") {
+                                    photo.url = options.source_host + thumb_url.substring(thumb_url.lastIndexOf('/') + 1);
+                                }
+                                // 如果是用户引用的图片
+                                else {
+                                    var m = thumb_url.match(/^(https?):\/\/(?:imgsrc|imgsa|\w+\.hiphotos)\.(?:bdimg|baidu)\.com\/(?:forum|album)\/.+\/(\w+\.(?:jpg|jpeg|gif|png|bmp|webp))(?:\?.+)?$/i);
+                                    // 如果引用的是贴吧图片
+                                    if (m !== null) {
+                                        photo.url = options.source_host + m[2];
+                                    } else {
+                                        photo.url = thumb_url;
+                                    }
+                                }
+                                photo_arr.push(photo);
+                            }
+                        }
+                    });
+                    return photo_arr;
+                },
+                "makeNames_callback": function (photos, location_info, options) {
+                    var names = {};
+                    var tie_id = location_info.file;
+                    var pn = location_info.params.pn || 1;
+                    var title = $(".core_title_txt").attr("title");
+                    names.infoName = "tie_info.txt";
+                    names.infoValue = "id：" + tie_id + "\r\n" +
+                        "title：" + title + "\r\n" +
+                        "url：" + location_info.source + "\r\n" +
+                        "page：" + pn + "\r\n" +
+                        "image_amount：" + photos.length + "\r\n";
+                    names.zipName = "tie_" + tie_id + (pn == 1 ? "" : ("_" + pn));
+                    names.folderName = names.zipName;
+                    names.prefix = tie_id + "_" + pn;
+                    names.suffix = options.suffix;
+                    return names;
+                },
+                "beforeFileDownload_callback": function(photos, names, location_info, options, zip, main_folder) {
+                    var photo_urls_str = "";
+                    $.each(photos, function(i, photo){
+                        var photoDefaultName = names.prefix + "_" + photo.folder_sort_index + "." + (names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1));
+                        var line = ((photo.location ? (photo.location + "/") : "" ) + photoDefaultName) + "\t" + photo.url + "\r\n";
+                        photo_urls_str += line;
+                    });
+                    main_folder.file("photo_url_list.txt", photo_urls_str);
+                },
+                "eachFileOnload_callback": function(blob, photo, location_info, options, zipFileLength, zip, main_folder, folder) {
+                    return true;
+                }
+            }
+        };
+        if (options) {
+            $.extend(true, config , options);
+        }
+        batchDownload(config);
+    };
 
 })(document, jQuery);

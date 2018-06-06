@@ -2,6 +2,18 @@
 Script plug-in for Tampermonkey
 
 ----
+#### V 2.3  &emsp;&emsp;  2018.5.31  
+
+ 1. 兼容edge
+
+#### V 2.2  &emsp;&emsp;  2018.4.7      
+
+ 1.调整匹配图片策略
+
+#### V 2.1  &emsp;&emsp;  2018.4.2  
+
+ 1. 调用Tampermonkey API 实现跨域下载，无需修改启动参数
+    
 #### V 2.0  &emsp;&emsp;  2018.4.1
 
  1.压缩包内增加贴子地址txt
@@ -60,17 +72,9 @@ https://greasyfork.org/zh-CN/scripts/30307
 多页下载可以 尝试 点击只看楼主 在下载
 
 ----
-“ 由于新版本chrome对跨域下载更加严格，使得下载文件变成了新标签打开 ” 
+使用 Tampermonkey 的 API 实现跨域下载 ：
 
-解决办法：
-
-        方法A：使用edge或降低浏览器版本
-
-        方法B：解除浏览器跨域限制，浏览器快捷方式添加启动参数  --args --disable-web-security --user-data-dir
-
-                    操作详细看 ：https://blog.csdn.net/dearwind153/article/details/52235749
-
-                    解除跨域限制后 才能使用打包下载
+    点击下载后，会弹出窗口申请权限，点击允许后会开启下载
 ----
 
 我的博客: http://imcoder.site
