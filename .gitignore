@@ -1,0 +1,15 @@
+# Windows: 
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# java 
+*.class
+
+# idea
+/.idea/
+*.iml
+/out/
+
+# maven
+/target/
