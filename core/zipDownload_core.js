@@ -239,4 +239,5 @@
             }
         }
     };
+	
 })(document, jQuery);

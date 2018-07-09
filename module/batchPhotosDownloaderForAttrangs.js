@@ -164,9 +164,6 @@
         "type": 2,
         "suffix": null,
         "callback" : {
-            "parseLocationInfo_callback": function (location_info, options) {
-                return common_utils.parseURL(document.location.href);
-            },
             "parsePhotos_callback": function (location_info, options) {
                 var photos = [];
                 return photos;
@@ -192,17 +189,23 @@
     /** 批量下载 **/
     function batchDownload(config) {
         try {
-            options = $.extend(true, options, config);
-            location_info = options.callback.parseLocationInfo_callback(options);
-            var photos = options.callback.parsePhotos_callback(location_info, options);
+            $.extend(true, options, config);
+            var photos = [];
+            if (options.callback.parsePhotos_callback) {
+                photos = options.callback.parsePhotos_callback(location_info, options);
+            }
 
-            if (confirm("是否下载 " + photos.length + " 张图片")) {
-                var names = options.callback.makeNames_callback(photos, location_info, options);
-                if (options.type == 1) {
-                    urlDownload(photos, names, location_info, options);
-                } else {
-                    ajaxDownloadAndZipPhotos(photos, names, location_info, options);
+            if (photos && photos.length > 0) {
+                if (confirm("是否下载 " + photos.length + " 张图片")) {
+                    var names = options.callback.makeNames_callback(photos, location_info, options);
+                    if (options.type == 1) {
+                        urlDownload(photos, names, location_info, options);
+                    } else {
+                        ajaxDownloadAndZipPhotos(photos, names, location_info, options);
+                    }
                 }
+            } else {
+                GM_notification({text: "未匹配到图片", title: "错误", highlight : true});
             }
         } catch (e) {
             console.log("批量下载照片 出现错误！");
