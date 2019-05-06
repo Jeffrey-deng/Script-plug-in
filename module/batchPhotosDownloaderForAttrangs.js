@@ -2,7 +2,7 @@
 // @name        批量下载Attrangs照片
 // @name:zh     批量下载Attrangs照片
 // @name:en     Batch srcImage downloader for Attrangs
-// @version     0.2
+// @version     0.4
 // @description   一键批量下载Attrangs中的图片
 // @description:zh  一键批量下载Attrangs中的图片
 // @description:en  Batch Download Image From Attrangs
@@ -17,8 +17,8 @@
 // @grant       GM.xmlHttpRequest
 // @grant       GM_notification
 // @grant       GM_addStyle
-// @require 	http://code.jquery.com/jquery-latest.js
-// @require 	https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @require     http://code.jquery.com/jquery-latest.js
+// @require     https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @author      Jeffrey.Deng
 // @namespace https://greasyfork.org/users/129338
 // ==/UserScript==
@@ -27,6 +27,9 @@
 // @date        2018.4.1
 
 // @更新日志
+// V 0.4        2019.1.30      1.修复网站更新后报错问题
+//                             2.调整图片排序的命名，格式化数字（1显示为01），便于查看时顺序一样
+//                             3.edge会闪退，原因不知，未修复
 // V 0.2        2018.4.7       增加对justone.co.kr的支持
 // V 0.1        2018.4.1       打包成zip压缩包下载
 
@@ -149,12 +152,16 @@
             }
             document.body.removeChild(aLink);
         }
+        function paddingZero(num, length) {
+            return (Array(length).join("0") + num).substr(-length);
+        }
         var context = {
             "ajaxDownload": ajaxDownload,
             "fileNameFromHeader": fileNameFromHeader,
             "downloadBlobFile": downloadBlobFile,
             "downloadUrlFile": downloadUrlFile,
-            "parseURL": parseURL
+            "parseURL": parseURL,
+            "paddingZero": paddingZero
         };
         return context;
     })(document, jQuery);
@@ -164,6 +171,9 @@
         "type": 2,
         "suffix": null,
         "callback" : {
+            "parseLocationInfo_callback": function (location_info, options) {
+                return common_utils.parseURL(document.location.href);
+            },
             "parsePhotos_callback": function (location_info, options) {
                 var photos = [];
                 return photos;
@@ -189,23 +199,17 @@
     /** 批量下载 **/
     function batchDownload(config) {
         try {
-            $.extend(true, options, config);
-            var photos = [];
-            if (options.callback.parsePhotos_callback) {
-                photos = options.callback.parsePhotos_callback(location_info, options);
-            }
+            options = $.extend(true, options, config);
+            location_info = options.callback.parseLocationInfo_callback(options);
+            var photos = options.callback.parsePhotos_callback(location_info, options);
 
-            if (photos && photos.length > 0) {
-                if (confirm("是否下载 " + photos.length + " 张图片")) {
-                    var names = options.callback.makeNames_callback(photos, location_info, options);
-                    if (options.type == 1) {
-                        urlDownload(photos, names, location_info, options);
-                    } else {
-                        ajaxDownloadAndZipPhotos(photos, names, location_info, options);
-                    }
+            if (confirm("是否下载 " + photos.length + " 张图片")) {
+                var names = options.callback.makeNames_callback(photos, location_info, options);
+                if (options.type == 1) {
+                    urlDownload(photos, names, location_info, options);
+                } else {
+                    ajaxDownloadAndZipPhotos(photos, names, location_info, options);
                 }
-            } else {
-                GM_notification({text: "未匹配到图片", title: "错误", highlight : true});
             }
         } catch (e) {
             console.log("批量下载照片 出现错误！");
@@ -247,6 +251,7 @@
                 main_folder.file(names.infoName, names.infoValue);
             }
             options.callback.beforeFileDownload_callback(photos, names, location_info, options, zip, main_folder);
+            var paddingZeroLength = (photos.length + "").length;
             for (var i = 0, maxIndex = photos.length; i < maxIndex; i++) {
                 common_utils.ajaxDownload(photos[i].url, function (blob, photo) {
                     var folder = photo.location ? main_folder.folder(photo.location) : main_folder;
@@ -256,7 +261,7 @@
                             folder.file(photo.fileName, blob);
                         } else {
                             var suffix = names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1);
-                            var photoName = names.prefix + "_" + photo.folder_sort_index + "." + suffix;
+                            var photoName = names.prefix + "_" + common_utils.paddingZero(photo.folder_sort_index, paddingZeroLength) + "." + suffix;
                             folder.file(photoName, blob);
                         }
                     }
@@ -397,7 +402,7 @@
                     var photo_arr = [];
                     if (location_info.host == "attrangs.co.kr") {
                         var kr_part_nodes_one = $('.detailPage .left .thumb ul li a');
-                        var kr_part_nodes_two = $('.viewCon').eq(1).find("img");
+                        var kr_part_nodes_two = $('.viewCon').eq(1).find("img").length == 0 ? $('.viewCon').eq(2).find("img") : $('.viewCon').eq(1).find("img");
                         var kr_part_nodes_three = null;
                         var kr_part_nodes_four = null;
                         if($('.detailPage .likeSlides').length == 2) {
@@ -408,14 +413,23 @@
                             kr_part_nodes_four = $('.detailPage .likeSlides').eq(0).find("a");
                         }
 
+                        var complete_url_test = /^http:/;
                         $.each(kr_part_nodes_one, function (i, a){
                             var photo = {};
                             photo.url = null;
                             if ($(this).data("video") == "") {
                                 photo.url = $(this).data('href');
+                                if (!complete_url_test.test(photo.url)) {
+                                    photo.url = "http:" + photo.url;
+                                    $(this).attr('data-href', photo.url)
+                                }
                                 photo.type = "image";
                             } else {
                                 photo.url = $(this).data('video');
+                                if (!complete_url_test.test(photo.url)) {
+                                    photo.url = "http:" + photo.url;
+                                    $(this).attr('data-video', photo.url)
+                                }
                                 photo.type = "video";
                             }
                             photo.location = "summary";
@@ -455,7 +469,7 @@
                             photo.url = img.get(0).src;
                             photo.location = "relation";
                             photo.folder_sort_index = i + 1;
-                            photo.good_name = img.attr("alt");
+                            photo.good_name = $(a).text().replace(/^\s*|\s*$/, '');
                             photo.good_url = a.href;
                             photo_arr.push(photo);
                         });
@@ -604,9 +618,9 @@
                     });
 
                     //pageHtml = pageDom.children(0)[0].outerHTML;
-
+                    var paddingZeroLength = (photos.length + "").length;
                     $.each(photos, function(i, photo){
-                        var photoDefaultName = names.prefix + "_" + photo.folder_sort_index + "." + (names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1));
+                        var photoDefaultName = names.prefix + "_" + common_utils.paddingZero(photo.folder_sort_index, paddingZeroLength) + "." + (names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1));
                         var photo_save_path = ((photo.location ? (photo.location + "/") : "" ) + photoDefaultName);
                         if (location_info.host == "attrangs.co.kr") {
                             if (photo.location == "like" || photo.location == "relation") {

@@ -117,12 +117,16 @@
             }
             document.body.removeChild(aLink);
         }
+        function paddingZero(num, length) {
+            return (Array(length).join("0") + num).substr(-length);
+        }
         var context = {
             "ajaxDownload": ajaxDownload,
             "fileNameFromHeader": fileNameFromHeader,
             "downloadBlobFile": downloadBlobFile,
             "downloadUrlFile": downloadUrlFile,
-            "parseURL": parseURL
+            "parseURL": parseURL,
+            "paddingZero": paddingZero
         };
         return context;
     })(document, jQuery);
@@ -215,6 +219,7 @@
                 main_folder.file(names.infoName, names.infoValue);
             }
             options.callback.beforeFileDownload_callback(photos, names, location_info, options, zip, main_folder);
+            var paddingZeroLength = (photos.length + "").length;
             for (var i = 0, maxIndex = photos.length; i < maxIndex; i++) {
                 common_utils.ajaxDownload(photos[i].url, function (blob, photo) {
                     var folder = photo.location ? main_folder.folder(photo.location) : main_folder;
@@ -224,7 +229,7 @@
                             folder.file(photo.fileName, blob);
                         } else {
                             var suffix = names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1);
-                            var photoName = names.prefix + "_" + photo.folder_sort_index + "." + suffix;
+                            var photoName = names.prefix + "_" + common_utils.paddingZero(photo.folder_sort_index, paddingZeroLength) + "." + suffix;
                             folder.file(photoName, blob);
                         }
                     }
@@ -239,5 +244,5 @@
             }
         }
     };
-	
+
 })(document, jQuery);

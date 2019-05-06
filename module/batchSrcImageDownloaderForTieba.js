@@ -2,7 +2,7 @@
 // @name        批量下载贴吧原图
 // @name:zh     批量下载贴吧原图
 // @name:en     Batch srcImage downloader for tieba
-// @version     2.3
+// @version     2.4
 // @description   一键打包下载贴吧中一页的原图
 // @description:zh  一键打包下载贴吧中一页的原图
 // @description:en  Batch Download Src Image From Baidu Tieba
@@ -14,8 +14,8 @@
 // @grant       GM_xmlHttpRequest
 // @grant       GM.xmlHttpRequest
 // @grant       GM_notification
-// @require 	https://code.jquery.com/jquery-latest.min.js
-// @require 	https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @require     https://code.jquery.com/jquery-latest.min.js
+// @require     https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @author      Jeffrey.Deng
 // @namespace https://greasyfork.org/users/129338
 // ==/UserScript==
@@ -25,6 +25,8 @@
 // @date        2017.6.3
 
 // @更新日志
+// V 2.4        2019.3.17      1.调整图片排序的命名，格式化数字（1显示为01），便于查看时顺序一样
+//                             2.edge会闪退，原因不知，未修复
 // V 2.3        2018.5.31      1.兼容edge
 // V 2.2        2018.4.7       1.调整匹配图片策略
 // V 2.1        2018.4.2       1.调用Tampermonkey API 实现跨域下载，无需修改启动参数
@@ -158,12 +160,16 @@
             }
             document.body.removeChild(aLink);
         }
+        function paddingZero(num, length) {
+            return (Array(length).join("0") + num).substr(-length);
+        }
         var context = {
             "ajaxDownload": ajaxDownload,
             "fileNameFromHeader": fileNameFromHeader,
             "downloadBlobFile": downloadBlobFile,
             "downloadUrlFile": downloadUrlFile,
-            "parseURL": parseURL
+            "parseURL": parseURL,
+            "paddingZero": paddingZero
         };
         return context;
     })(document, jQuery);
@@ -256,6 +262,7 @@
                 main_folder.file(names.infoName, names.infoValue);
             }
             options.callback.beforeFileDownload_callback(photos, names, location_info, options, zip, main_folder);
+            var paddingZeroLength = (photos.length + "").length;
             for (var i = 0, maxIndex = photos.length; i < maxIndex; i++) {
                 common_utils.ajaxDownload(photos[i].url, function (blob, photo) {
                     var folder = photo.location ? main_folder.folder(photo.location) : main_folder;
@@ -265,7 +272,7 @@
                             folder.file(photo.fileName, blob);
                         } else {
                             var suffix = names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1);
-                            var photoName = names.prefix + "_" + photo.folder_sort_index + "." + suffix;
+                            var photoName = names.prefix + "_" + common_utils.paddingZero(photo.folder_sort_index, paddingZeroLength) + "." + suffix;
                             folder.file(photoName, blob);
                         }
                     }
@@ -387,14 +394,15 @@
                         "image_amount：" + photos.length + "\r\n";
                     names.zipName = "tie_" + tie_id + (pn == 1 ? "" : ("_" + pn));
                     names.folderName = names.zipName;
-                    names.prefix = tie_id + "_" + pn;
+                    names.prefix = tie_id + "_" + common_utils.paddingZero(pn, 3);
                     names.suffix = options.suffix;
                     return names;
                 },
                 "beforeFileDownload_callback": function(photos, names, location_info, options, zip, main_folder) {
                     var photo_urls_str = "";
+                    var paddingZeroLength = (photos.length + "").length;
                     $.each(photos, function(i, photo){
-                        var photoDefaultName = names.prefix + "_" + photo.folder_sort_index + "." + (names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1));
+                        var photoDefaultName = names.prefix + "_" + common_utils.paddingZero(photo.folder_sort_index, paddingZeroLength) + "." + (names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1));
                         var line = ((photo.location ? (photo.location + "/") : "" ) + photoDefaultName) + "\t" + photo.url + "\r\n";
                         photo_urls_str += line;
                     });
