@@ -2,11 +2,11 @@
 // @name        批量下载Attrangs照片
 // @name:zh     批量下载Attrangs照片
 // @name:en     Batch srcImage downloader for Attrangs
-// @version     0.4
+// @version     0.5
 // @description   一键批量下载Attrangs中的图片
 // @description:zh  一键批量下载Attrangs中的图片
 // @description:en  Batch Download Image From Attrangs
-// @supportURL  https://imcoder.site/article.do?method=detail&aid=124
+// @supportURL  https://imcoder.site/article/detail?aid=124
 // @match       http://attrangs.co.kr/*
 // @match       https://attrangs.co.kr/*
 // @match       http://cn.attrangs.com/*
@@ -17,8 +17,9 @@
 // @grant       GM.xmlHttpRequest
 // @grant       GM_notification
 // @grant       GM_addStyle
-// @require     http://code.jquery.com/jquery-latest.js
-// @require     https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @require 	http://code.jquery.com/jquery-latest.js
+// @require 	https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
+// @require 	https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @author      Jeffrey.Deng
 // @namespace https://greasyfork.org/users/129338
 // ==/UserScript==
@@ -27,6 +28,8 @@
 // @date        2018.4.1
 
 // @更新日志
+// V 0.5        2019.12.2      1.修改为toastr提示方式
+//                             2.采用队列下载
 // V 0.4        2019.1.30      1.修复网站更新后报错问题
 //                             2.调整图片排序的命名，格式化数字（1显示为01），便于查看时顺序一样
 //                             3.edge会闪退，原因不知，未修复
@@ -34,6 +37,8 @@
 // V 0.1        2018.4.1       打包成zip压缩包下载
 
 (function (document, $) {
+
+    $("head").append('<link rel="stylesheet" href="https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.css">');
 
     var common_utils = (function(document, $) {
         function parseURL(url) {
@@ -155,28 +160,76 @@
         function paddingZero(num, length) {
             return (Array(length).join("0") + num).substr(-length);
         }
+        /*  Class: TaskQueue
+         *  Constructor: handler
+         *      takes a function which will be the task handler to be called,
+         *      handler should return Deferred object(not Promise), if not it will run immediately;
+         *  methods: append
+         *      appends a task to the Queue. Queue will only call a task when the previous task has finished
+         */
+        var TaskQueue = function (handler) {
+            var tasks = [];
+            // empty resolved deferred object
+            var deferred = $.when();
+
+            // handle the next object
+            function handleNextTask() {
+                // if the current deferred task has resolved and there are more tasks
+                if (deferred.state() == "resolved" && tasks.length > 0) {
+                    // grab a task
+                    var task = tasks.shift();
+                    // set the deferred to be deferred returned from the handler
+                    deferred = handler(task);
+                    // if its not a deferred object then set it to be an empty deferred object
+                    if (!(deferred && deferred.promise)) {
+                        deferred = $.when();
+                    }
+                    // if we have tasks left then handle the next one when the current one
+                    // is done.
+                    if (tasks.length >= 0) {
+                        deferred.fail(function () {
+                            tasks = [];
+                            return;
+                        });
+                        deferred.done(handleNextTask);
+                    }
+                }
+            }
+
+            // appends a task.
+            this.append = function (task) {
+                // add to the array
+                tasks.push(task);
+                // handle the next task
+                handleNextTask();
+            };
+        };
         var context = {
             "ajaxDownload": ajaxDownload,
             "fileNameFromHeader": fileNameFromHeader,
             "downloadBlobFile": downloadBlobFile,
             "downloadUrlFile": downloadUrlFile,
             "parseURL": parseURL,
-            "paddingZero": paddingZero
+            "paddingZero": paddingZero,
+            "TaskQueue": TaskQueue
         };
         return context;
     })(document, jQuery);
 
-    var location_info = common_utils.parseURL(document.location.href);
     var options = {
         "type": 2,
+        "isNeedConfirmDownload": true,
+        "useQueueDownloadThreshold": 0,
         "suffix": null,
-        "callback" : {
+        "callback": {
             "parseLocationInfo_callback": function (location_info, options) {
                 return common_utils.parseURL(document.location.href);
             },
-            "parsePhotos_callback": function (location_info, options) {
-                var photos = [];
-                return photos;
+            "parseFiles_callback": function (location_info, options) {
+                // file.url file.folder_sort_index
+                // not folder_sort_index -> use fileName
+                var files = [];
+                return files;
             },
             "makeNames_callback": function (arr, location_info, options) {
                 var names = {};
@@ -189,10 +242,86 @@
                 names.suffix = options.suffix;
                 return names;
             },
-            "beforeFileDownload_callback": function(photos, location_info, options, zip, main_folder) {
+            "beforeFileDownload_callback": function (files, names, location_info, options, zip, main_folder) {
             },
-            "eachFileOnload_callback": function(blob, photo, location_info, options, zipFileLength, zip, main_folder, folder) {
+            "eachFileOnload_callback": function (blob, file, location_info, options, zipFileLength, zip, main_folder, folder) {
+            },
+            "allFilesOnload_callback": function (files, names, location_info, options, zip, main_folder) {
+            },
+            "beforeZipFileDownload_callback": function (zip_blob, files, names, location_info, options, zip, main_folder) {
+                common_utils.downloadBlobFile(zip_blob, names.zipName + ".zip");
             }
+        }
+    };
+
+    var ajaxDownloadAndZipFiles = function (files, names, location_info, options) {
+        // GM_notification("开始下载～", names.zipName);
+        var notify_start = toastr.success("正在打包～", names.zipName, {
+            "progressBar": false,
+            "hideDuration": 0,
+            "showDuration": 0,
+            "timeOut": 0,
+            "closeButton": false
+        });
+        if (files && files.length > 0) {
+            var zip = new JSZip();
+            var main_folder = zip.folder(names.folderName);
+            var zipFileLength = 0;
+            var maxIndex = files.length;
+            if (names.infoName) {
+                main_folder.file(names.infoName, names.infoValue);
+            }
+            options.callback.beforeFileDownload_callback(files, names, location_info, options, zip, main_folder);
+            var downloadFile = function (file, resolveCallback) {
+                common_utils.ajaxDownload(file.url, function (blob, file) {
+                    var folder = file.location ? main_folder.folder(file.location) : main_folder;
+                    var isSave = options.callback.eachFileOnload_callback(blob, file, location_info, options, zipFileLength, zip, main_folder, folder);
+                    if (isSave != false) {
+                        if (file.fileName) {
+                            folder.file(file.fileName, blob);
+                        } else {
+                            var suffix = names.suffix || file.url.substring(file.url.lastIndexOf('.') + 1);
+                            file.fileName = names.prefix + "_" + file.folder_sort_index + "." + suffix;
+                            folder.file(file.fileName, blob);
+                        }
+                    }
+                    zipFileLength++;
+                    notify_start.find(".toast-message").text("正在打包～ 第 " + zipFileLength + " 张");
+                    resolveCallback && resolveCallback();   // resolve延迟对象
+                    if (zipFileLength >= maxIndex) {
+                        options.callback.allFilesOnload_callback(files, names, location_info, options, zip, main_folder);
+                        zip.generateAsync({type: "blob"}).then(function (content) {
+                            options.callback.beforeZipFileDownload_callback(content, files, names, location_info, options, zip, main_folder);
+                        });
+                        // GM_notification({text: "打包下载完成！", title: names.zipName, highlight : true});
+                        notify_start.css("display", "none").remove();
+                        toastr.success("下载完成！", names.zipName, {"progressBar": false}, {"progressBar": false, timeOut: 0});
+                    }
+                }, file);
+            };
+            if (maxIndex < options.useQueueDownloadThreshold) {
+                // 并发数在useQueueDownloadThreshold内，直接下载
+                for (var i = 0; i < maxIndex; i++) {
+                    downloadFile(files[i]);
+                }
+            } else {
+                // 并发数在useQueueDownloadThreshold之上，采用队列下载
+                var queue = new common_utils.TaskQueue(function (file) {
+                    if (file) {
+                        var dfd = $.Deferred();
+                        downloadFile(file, function () {
+                            dfd.resolve();
+                        });
+                        return dfd;
+                    }
+                });
+                for (var j = 0; j < maxIndex; j++) {
+                    queue.append(files[j]);
+                }
+            }
+        } else {
+            toastr.remove(notify_start, true);
+            toastr.error("未解析到图片！", "错误", {"progressBar": false});
         }
     };
 
@@ -200,21 +329,25 @@
     function batchDownload(config) {
         try {
             options = $.extend(true, options, config);
-            location_info = options.callback.parseLocationInfo_callback(options);
-            var photos = options.callback.parsePhotos_callback(location_info, options);
+            var location_info = options.callback.parseLocationInfo_callback(options);
+            var files = options.callback.parseFiles_callback(location_info, options);
 
-            if (confirm("是否下载 " + photos.length + " 张图片")) {
-                var names = options.callback.makeNames_callback(photos, location_info, options);
-                if (options.type == 1) {
-                    urlDownload(photos, names, location_info, options);
-                } else {
-                    ajaxDownloadAndZipPhotos(photos, names, location_info, options);
+            if (files && files.length > 0) {
+                if (options.isNeedConfirmDownload && confirm("是否下载 " + files.length + " 张图片")) {
+                    if (options.type == 1) {
+                        urlDownload(files, names, location_info, options);
+                    } else {
+                        var names = options.callback.makeNames_callback(files, location_info, options);
+                        ajaxDownloadAndZipFiles(files, names, location_info, options);
+                    }
                 }
+            } else {
+                toastr.error("未找到图片~", "");
             }
         } catch (e) {
-            console.log("批量下载照片 出现错误！");
-            GM_notification("批量下载照片 出现错误！", "");
-            console.log(e);
+            // GM_notification("批量下载照片 出现错误！", "");
+            console.warn("批量下载照片 出现错误！, exception: ", e);
+            toastr.error("批量下载照片 出现错误！", "");
         }
 
     }
@@ -240,42 +373,6 @@
             index++;
         }, 100);
     }
-
-    var ajaxDownloadAndZipPhotos = function (photos, names, location_info, options) {
-        GM_notification("开始下载～", names.zipName);
-        if (photos && photos.length > 0) {
-            var zip = new JSZip();
-            var main_folder = zip.folder(names.folderName);
-            var zipFileLength = 0;
-            if (names.infoName) {
-                main_folder.file(names.infoName, names.infoValue);
-            }
-            options.callback.beforeFileDownload_callback(photos, names, location_info, options, zip, main_folder);
-            var paddingZeroLength = (photos.length + "").length;
-            for (var i = 0, maxIndex = photos.length; i < maxIndex; i++) {
-                common_utils.ajaxDownload(photos[i].url, function (blob, photo) {
-                    var folder = photo.location ? main_folder.folder(photo.location) : main_folder;
-                    var isSave = options.callback.eachFileOnload_callback(blob, photo, location_info, options, zipFileLength, zip, main_folder, folder);
-                    if (isSave != false) {
-                        if (photo.fileName) {
-                            folder.file(photo.fileName, blob);
-                        } else {
-                            var suffix = names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1);
-                            var photoName = names.prefix + "_" + common_utils.paddingZero(photo.folder_sort_index, paddingZeroLength) + "." + suffix;
-                            folder.file(photoName, blob);
-                        }
-                    }
-                    zipFileLength++;
-                    if (zipFileLength >= maxIndex) {
-                        zip.generateAsync({type: "blob"}).then(function (content) {
-                            common_utils.downloadBlobFile(content, names.zipName + ".zip");
-                        });
-                        GM_notification({text: "打包下载完成！", title: names.zipName, highlight : true});
-                    }
-                }, photos[i]);
-            }
-        }
-    };
 
     /*** start main ***/
 
@@ -398,26 +495,28 @@
         var config = {
             "type": 2,
             "callback": {
-                "parsePhotos_callback": function (location_info, options) {
+                "parseFiles_callback": function (location_info, options) {
                     var photo_arr = [];
                     if (location_info.host == "attrangs.co.kr") {
-                        var kr_part_nodes_one = $('.detailPage .left .thumb ul li a');
-                        var kr_part_nodes_two = $('.viewCon').eq(1).find("img").length == 0 ? $('.viewCon').eq(2).find("img") : $('.viewCon').eq(1).find("img");
-                        var kr_part_nodes_three = null;
-                        var kr_part_nodes_four = null;
-                        if($('.detailPage .likeSlides').length == 2) {
-                            kr_part_nodes_three = $('.detailPage .likeSlides').eq(0).find("a");
-                            kr_part_nodes_four = $('.detailPage .likeSlides').eq(1).find("a");
-                        } else {
-                            kr_part_nodes_three = $('.detailPage .likeSlides').eq(1).find("a");
-                            kr_part_nodes_four = $('.detailPage .likeSlides').eq(0).find("a");
-                        }
+                        var kr_part_nodes_one = $("#detail .addimg .slick-track img"); // $('.detailPage .left .thumb ul li a');
+                        var kr_part_nodes_two = $('#infoImageLine').find('img'); // $('.viewCon').eq(1).find("img").length == 0 ? $('.viewCon').eq(2).find("img") : $('.viewCon').eq(1).find("img");
+                        var kr_part_nodes_three = $('#detail .related .prdimg a');
+                        var kr_part_nodes_four = $("#detail > div.wrap_info > div.tabcnt_detail.tabcnt_detail1 .prdimg a");
+                        //var kr_part_nodes_three = null;
+                        //var kr_part_nodes_four = null;
+                        //if($('.detailPage .likeSlides').length == 2) {
+                        //    kr_part_nodes_three = $('.detailPage .likeSlides').eq(0).find("a");
+                        //    kr_part_nodes_four = $('.detailPage .likeSlides').eq(1).find("a");
+                        //} else {
+                        //    kr_part_nodes_three = $('.detailPage .likeSlides').eq(1).find("a");
+                        //    kr_part_nodes_four = $('.detailPage .likeSlides').eq(0).find("a");
+                        //}
 
                         var complete_url_test = /^http:/;
                         $.each(kr_part_nodes_one, function (i, a){
                             var photo = {};
                             photo.url = null;
-                            if ($(this).data("video") == "") {
+                            if (!$(this).data("video")) {
                                 photo.url = $(this).data('href');
                                 if (!complete_url_test.test(photo.url)) {
                                     photo.url = "http:" + photo.url;
@@ -469,7 +568,7 @@
                             photo.url = img.get(0).src;
                             photo.location = "relation";
                             photo.folder_sort_index = i + 1;
-                            photo.good_name = $(a).text().replace(/^\s*|\s*$/, '');
+                            photo.good_name = img.attr("alt"); // $(a).text().replace(/^\s*|\s*$/, '');
                             photo.good_url = a.href;
                             photo_arr.push(photo);
                         });
@@ -516,15 +615,15 @@
                 "makeNames_callback": function (photos, location_info, options) {
                     var names = {};
                     if (location_info.host == "attrangs.co.kr") {
-                        var product_property_node = $(".aw-product");
-                        var good_id = product_property_node.find('div[data-product-property="id"]').text();
-                        var good_name = product_property_node.find('div[data-product-property="title"]').text();
+                        var product_property_node = $("head"); // $(".aw-product");
+                        var good_id = location_info.params.index_no; // product_property_node.find('div[data-product-property="id"]').text();
+                        var good_name = product_property_node.find('meta[property="og:title"]').attr('content'); // product_property_node.find('div[data-product-property="title"]').text();
                         var good_keyName = good_name.substring(0, good_name.indexOf(" ")) || good_id;
-                        var good_type_little = product_property_node.find('div[data-product-property="product_type"]').text();
+                        var good_type_little = product_property_node.find('meta[name="subject"]').attr('content'); // product_property_node.find('div[data-product-property="product_type"]').text();
                         var good_type_large = good_type_little.substring(0, 4);
-                        var good_description = product_property_node.find('div[data-product-property="description"]').text();
-                        var good_price = product_property_node.find('div[data-product-property="price"]').text();
-                        var good_cover = product_property_node.find('div[data-product-property="image_link"]').text();
+                        var good_description = product_property_node.find('meta[property="og:description"]').attr('content'); // product_property_node.find('div[data-product-property="description"]').text();
+                        var good_price = product_property_node.find('meta[property="product:price:amount"]').attr('content'); // product_property_node.find('div[data-product-property="price"]').text();
+                        var good_cover = product_property_node.find('meta[property="og:image"]').attr('content'); // product_property_node.find('div[data-product-property="image_link"]').text();
                         names.infoName = "clothing_info.txt";
                         names.infoValue = "good_id：" + good_id + "\r\n" +
                             "good_keyName：" + good_keyName + "\r\n" +
@@ -594,8 +693,10 @@
                     pageDom.find("script").each(function(i, script){
                         $(script).remove();
                     });
-                    pageDom.find('.detailPage .left .thumb ul li a').addClass("clickToChange");
-                    pageDom.find('.detailPage .left .photo img').attr("id","clickToChange-img");
+                    //pageDom.find('.detailPage .left .thumb ul li a').addClass("clickToChange");
+                    //pageDom.find('.detailPage .left .photo img').attr("id","clickToChange-img");
+                    pageDom.find('.add_slide img').addClass("clickToChange");
+                    pageDom.find('.main-photo').attr("id","clickToChange-img");
                     pageDom.find("body").append(
                      "<script type='text/javascript'>var arr = document.getElementsByClassName('clickToChange');for(var i=0;i<arr.length;i++){arr[i].onclick= function(){if (this.getAttribute('data-video') == ''){" +
 					"var path = this.getAttribute('data-href');var img = document.getElementById('clickToChange-img');img.setAttribute('src',path);img.style =  img.style + 'visibility:visible';" +
@@ -693,7 +794,7 @@
                 "parseLocationInfo_callback": function (location_info, options) {
                     return common_utils.parseURL(document.location.href);
                 },
-                "parsePhotos_callback": function (location_info, options) {
+                "parseFiles_callback": function (location_info, options) {
                     var photo_arr = [];
                     if (location_info.host == "justone.co.kr" || location_info.host == "www.justone.co.kr") {
                         var kr_part_nodes_one = $('#productDetail .thumb-wrap .origin-img a');
