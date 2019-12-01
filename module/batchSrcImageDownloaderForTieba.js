@@ -303,7 +303,7 @@
                         });
                         // GM_notification({text: "打包下载完成！", title: names.zipName, highlight : true});
                         notify_start.css("display", "none").remove();
-                        toastr.success("下载完成！", names.zipName, {"progressBar": false}, {"progressBar": false, timeOut: 0});
+                        toastr.success("下载完成！", names.zipName, {"progressBar": false, timeOut: 0});
                     }
                 }, file);
             };
@@ -514,7 +514,7 @@
                 },
                 "allFilesOnload_callback": function (photos, names, location_info, options, zip, main_folder) {
                     if (options.failFiles && options.failFiles.length > 0) {
-                        toastr.error("共" + options.failFiles.length + "下载失败，已记录在photos_fail_list.txt！", "", {"progressBar": false, timeOut: 0});
+                        toastr.error("共 " + options.failFiles.length + " 张图片下载失败，已记录在photos_fail_list.txt！", "", {"progressBar": false, timeOut: 0});
                         var failPhotoListStr = "";
                         for (var i in options.failFiles) {
                             var failFile = options.failFiles[i];
