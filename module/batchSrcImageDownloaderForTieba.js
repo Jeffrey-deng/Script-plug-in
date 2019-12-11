@@ -26,6 +26,7 @@
 // @date        2017.6.3
 
 // @更新日志
+// v 2.5.1      2019.12.11     1.修复格式化数字排序未生效的问题
 // V 2.5        2019.12.2      1.修改为toastr提示方式
 //                             2.采用队列下载
 // V 2.4        2019.3.17      1.调整图片排序的命名，格式化数字（1显示为01），便于查看时顺序一样
@@ -250,7 +251,7 @@
                 names.suffix = options.suffix;
                 return names;
             },
-            "beforeFileDownload_callback": function (files, names, location_info, options, zip, main_folder) {
+            "beforeFilesDownload_callback": function (files, names, location_info, options, zip, main_folder) {
             },
             "eachFileOnload_callback": function (blob, file, location_info, options, zipFileLength, zip, main_folder, folder) {
             },
@@ -276,10 +277,11 @@
             var main_folder = zip.folder(names.folderName);
             var zipFileLength = 0;
             var maxIndex = files.length;
+            var paddingZeroLength = (files.length + "").length;
             if (names.infoName) {
                 main_folder.file(names.infoName, names.infoValue);
             }
-            options.callback.beforeFileDownload_callback(files, names, location_info, options, zip, main_folder);
+            options.callback.beforeFilesDownload_callback(files, names, location_info, options, zip, main_folder);
             var downloadFile = function (file, resolveCallback) {
                 common_utils.ajaxDownload(file.url, function (blob, file) {
                     var folder = file.location ? main_folder.folder(file.location) : main_folder;
@@ -289,7 +291,7 @@
                             folder.file(file.fileName, blob);
                         } else {
                             var suffix = names.suffix || file.url.substring(file.url.lastIndexOf('.') + 1);
-                            file.fileName = names.prefix + "_" + file.folder_sort_index + "." + suffix;
+                            file.fileName = names.prefix + "_" + common_utils.paddingZero(file.folder_sort_index, paddingZeroLength) + "." + suffix;
                             folder.file(file.fileName, blob);
                         }
                     }
@@ -493,15 +495,17 @@
                     names.suffix = options.suffix;
                     return names;
                 },
-                "beforeFileDownload_callback": function(photos, names, location_info, options, zip, main_folder) {
+                "beforeFilesDownload_callback": function(photos, names, location_info, options, zip, main_folder) {
                     var photo_urls_str = "";
                     var paddingZeroLength = (photos.length + "").length;
                     $.each(photos, function(i, photo){
                         var photoDefaultName = names.prefix + "_" + common_utils.paddingZero(photo.folder_sort_index, paddingZeroLength) + "." + (names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1));
-                        var line = ((photo.location ? (photo.location + "/") : "" ) + photoDefaultName) + "\t" + photo.url + "\r\n";
+                        photo.fileName = photoDefaultName;
+                        var line = ((photo.location ? (photo.location + "/") : "" ) + photo.fileName) + "\t" + photo.url + "\r\n";
                         photo_urls_str += line;
                     });
                     main_folder.file("photo_url_list.txt", photo_urls_str);
+                    options.failFiles = undefined;
                 },
                 "eachFileOnload_callback": function(blob, photo, location_info, options, zipFileLength, zip, main_folder, folder) {
                     if (blob == null) {
@@ -514,7 +518,7 @@
                 },
                 "allFilesOnload_callback": function (photos, names, location_info, options, zip, main_folder) {
                     if (options.failFiles && options.failFiles.length > 0) {
-                        toastr.error("共 " + options.failFiles.length + " 张图片下载失败，已记录在photos_fail_list.txt！", "", {"progressBar": false, timeOut: 0});
+                        toastr.error("共" + options.failFiles.length + "下载失败，已记录在photos_fail_list.txt！", "", {"progressBar": false, timeOut: 0});
                         var failPhotoListStr = "";
                         for (var i in options.failFiles) {
                             var failFile = options.failFiles[i];

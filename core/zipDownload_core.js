@@ -1,4 +1,35 @@
+// ==UserScript==
+// @name        批量下载照片
+// @name:zh     批量下载照片
+// @name:en     Batch srcImage downloader
+// @version     0.3
+// @description   一键批量下载图片
+// @description:zh  一键批量下载图片
+// @description:en  Batch Download Image
+// @supportURL  https://imcoder.site/article/detail?aid=124
+// @match       http://item.meilishuo.com/*
+// @grant       GM_xmlHttpRequest
+// @grant       GM.xmlHttpRequest
+// @grant       GM_notification
+// @grant       GM_addStyle
+// @require 	http://code.jquery.com/jquery-latest.js
+// @require 	https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @author      Jeffrey.Deng
+// @namespace https://greasyfork.org/users/129338
+// ==/UserScript==
+
+// @blog        https://imcoder.site
+// @date        2018.4.1
+
+// @更新日志
+// v 0.3.1      2019.12.11     1.修复格式化数字排序未生效的问题
+// V 0.3        2019.12.2      1.修改为toastr提示方式
+//                             2.采用队列下载
+// V 0.1        2018.4.1       打包成zip压缩包下载
+
 (function (document, $) {
+
+    $("head").append('<link rel="stylesheet" href="https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.css">');
 
     var common_utils = (function(document, $) {
         function parseURL(url) {
@@ -202,7 +233,7 @@
                 names.suffix = options.suffix;
                 return names;
             },
-            "beforeFileDownload_callback": function (files, names, location_info, options, zip, main_folder) {
+            "beforeFilesDownload_callback": function (files, names, location_info, options, zip, main_folder) {
             },
             "eachFileOnload_callback": function (blob, file, location_info, options, zipFileLength, zip, main_folder, folder) {
             },
@@ -228,10 +259,11 @@
             var main_folder = zip.folder(names.folderName);
             var zipFileLength = 0;
             var maxIndex = files.length;
+            var paddingZeroLength = (files.length + "").length;
             if (names.infoName) {
                 main_folder.file(names.infoName, names.infoValue);
             }
-            options.callback.beforeFileDownload_callback(files, names, location_info, options, zip, main_folder);
+            options.callback.beforeFilesDownload_callback(files, names, location_info, options, zip, main_folder);
             var downloadFile = function (file, resolveCallback) {
                 common_utils.ajaxDownload(file.url, function (blob, file) {
                     var folder = file.location ? main_folder.folder(file.location) : main_folder;
@@ -241,7 +273,7 @@
                             folder.file(file.fileName, blob);
                         } else {
                             var suffix = names.suffix || file.url.substring(file.url.lastIndexOf('.') + 1);
-                            file.fileName = names.prefix + "_" + file.folder_sort_index + "." + suffix;
+                            file.fileName = names.prefix + "_" + common_utils.paddingZero(file.folder_sort_index, paddingZeroLength) + "." + suffix;
                             folder.file(file.fileName, blob);
                         }
                     }
@@ -333,5 +365,109 @@
             index++;
         }, 100);
     }
+
+    /*** start main ***/
+
+    if (typeof GM_addStyle == 'undefined') {
+        this.GM_addStyle = (aCss) => {
+            'use strict';
+            let head = document.getElementsByTagName('head')[0];
+            if (head) {
+                let style = document.createElement('style');
+                style.setAttribute('type', 'text/css');
+                style.textContent = aCss;
+                head.appendChild(style);
+                return style;
+            }
+            return null;
+        };
+    }
+
+    function addDownloadBtn() {
+        GM_addStyle(
+            ".goBottom { " +
+            "    display: block; " +
+            "    width: 38px; " +
+            "    height: 38px; " +
+            "    background-color: #ddd; " +
+            "    border-radius: 3px; " +
+            "    border: 0; " +
+            "    cursor: pointer; " +
+            "    position: fixed; " +
+            "    right: 50px; " +
+            "    bottom: -40px; " +
+            "} " +
+            ".goBottom .arrow { " +
+            "    width: 0; " +
+            "    height: 0; " +
+            "    bottom: 6px; " +
+            "    border-width: 9px 9px 0; " +
+            "    border-style: solid; " +
+            "    border-color: transparent; " +
+            "    border-top-color: #429e46; " +
+            "} " +
+            ".goBottom div { " +
+            "    position: absolute; " +
+            "    right: 0; " +
+            "    left: 0; " +
+            "    margin: auto; " +
+            "} " +
+            ".goBottom .stick { " +
+            "    width: 8px; " +
+            "    height: 14px; " +
+            "    top: 9px; " +
+            "    border-radius: 1px; " +
+            "    background-color: #429e46; }"
+        );
+
+        $("body").append(
+            '<div id="batchDownloadBtn" class="goBottom" style="bottom: 30px;z-index: 10000" title="点击打包下载所有图片"><div class="stick"></div><div class="arrow"></div>'
+        );
+    }
+
+    addDownloadBtn();
+
+    $('#batchDownloadBtn').click(function () {
+        unsafeWindow.attrangsPhotoDownload();
+    });
+
+    // attrangs
+    unsafeWindow.attrangsPhotoDownload = function (options) {
+        var config = {
+            "type": 2,
+            "callback": {
+                "parseFiles_callback": function (location_info, options) {
+                    var photo_arr = [];
+                    $.each($("#J_Graphic_穿着效果").find("img"), function(i, dom){
+                        var photo = {};
+                        var link = dom.src;
+                        link = link.substring(0, link.lastIndexOf("_"));
+                        photo.url = link;
+                        //photo.fileName = link.substring(link.lastIndexOf("/")).replace(/_\d+x\d+/, '');
+                        photo.folder_sort_index = i + 1;
+                        photo_arr.push(photo);
+                    });
+                    return photo_arr;
+                },
+                "makeNames_callback": function (photos, location_info, options) {
+                    var names = {};
+                    names.zipName = "batch_down";
+                    names.folderName = names.zipName;
+                    names.prefix = "1keksvc_170531";
+                    names.suffix = null;
+                    return names;
+                },
+                "beforeFilesDownload_callback": function(photos, names, location_info, options, zip, main_folder) {
+                },
+                "eachFileOnload_callback": function(blob, photo, location_info, options, zipFileLength, zip, main_folder, folder) {
+                }
+            }
+        };
+        if (options) {
+            $.extend(true, config , options);
+        }
+        batchDownload(config);
+    };
+
 
 })(document, jQuery);

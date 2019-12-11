@@ -28,6 +28,7 @@
 // @date        2018.4.1
 
 // @更新日志
+// v 0.5.1      2019.12.11     1.修复格式化数字排序未生效的问题
 // V 0.5        2019.12.2      1.修改为toastr提示方式
 //                             2.采用队列下载
 // V 0.4        2019.1.30      1.修复网站更新后报错问题
@@ -242,7 +243,7 @@
                 names.suffix = options.suffix;
                 return names;
             },
-            "beforeFileDownload_callback": function (files, names, location_info, options, zip, main_folder) {
+            "beforeFilesDownload_callback": function (files, names, location_info, options, zip, main_folder) {
             },
             "eachFileOnload_callback": function (blob, file, location_info, options, zipFileLength, zip, main_folder, folder) {
             },
@@ -268,10 +269,11 @@
             var main_folder = zip.folder(names.folderName);
             var zipFileLength = 0;
             var maxIndex = files.length;
+            var paddingZeroLength = (files.length + "").length;
             if (names.infoName) {
                 main_folder.file(names.infoName, names.infoValue);
             }
-            options.callback.beforeFileDownload_callback(files, names, location_info, options, zip, main_folder);
+            options.callback.beforeFilesDownload_callback(files, names, location_info, options, zip, main_folder);
             var downloadFile = function (file, resolveCallback) {
                 common_utils.ajaxDownload(file.url, function (blob, file) {
                     var folder = file.location ? main_folder.folder(file.location) : main_folder;
@@ -281,7 +283,7 @@
                             folder.file(file.fileName, blob);
                         } else {
                             var suffix = names.suffix || file.url.substring(file.url.lastIndexOf('.') + 1);
-                            file.fileName = names.prefix + "_" + file.folder_sort_index + "." + suffix;
+                            file.fileName = names.prefix + "_" + common_utils.paddingZero(file.folder_sort_index, paddingZeroLength) + "." + suffix;
                             folder.file(file.fileName, blob);
                         }
                     }
@@ -682,7 +684,7 @@
                     }
                     return names;
                 },
-                "beforeFileDownload_callback": function(photos, names, location_info, options, zip, main_folder) {
+                "beforeFilesDownload_callback": function(photos, names, location_info, options, zip, main_folder) {
                     var photo_urls_str = "";
 
                     // 保存html文件
@@ -902,7 +904,7 @@
                     }
                     return names;
                 },
-                "beforeFileDownload_callback": function(photos, names, location_info, options, zip, main_folder) {
+                "beforeFilesDownload_callback": function(photos, names, location_info, options, zip, main_folder) {
                     // 保存html文件
                     var htmlNode = document.cloneNode(true);
                     var pageDom = $(htmlNode);
@@ -928,8 +930,9 @@
                     });
 
                     var photo_urls_str = "";
+                    var paddingZeroLength = (photos.length + "").length;
                     $.each(photos, function(i, photo){
-                        var photoDefaultName = names.prefix + "_" + photo.folder_sort_index + "." + (names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1));
+                        var photoDefaultName = names.prefix + "_" + common_utils.paddingZero(photo.folder_sort_index, paddingZeroLength) + "." + (names.suffix || photo.url.substring(photo.url.lastIndexOf('.') + 1));
                         var photo_save_path = ((photo.location ? (photo.location + "/") : "" ) + photoDefaultName);
                         if (location_info.host == "justone.co.kr") {
                             if (photo.location == "like" || photo.location == "relation" || photo.location == "collocation") {
