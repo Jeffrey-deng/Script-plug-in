@@ -2,7 +2,7 @@
 // @name        批量下载Attrangs照片
 // @name:zh     批量下载Attrangs照片
 // @name:en     Batch srcImage downloader for Attrangs
-// @version     0.5
+// @version     0.5.1
 // @description   一键批量下载Attrangs中的图片
 // @description:zh  一键批量下载Attrangs中的图片
 // @description:en  Batch Download Image From Attrangs

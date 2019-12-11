@@ -2,7 +2,7 @@
 // @name        批量下载照片
 // @name:zh     批量下载照片
 // @name:en     Batch srcImage downloader
-// @version     0.3
+// @version     0.3.1
 // @description   一键批量下载图片
 // @description:zh  一键批量下载图片
 // @description:en  Batch Download Image
