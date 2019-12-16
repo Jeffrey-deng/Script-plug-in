@@ -11,12 +11,14 @@
 // @match       https://tieba.baidu.com/*
 // @match       http://imgsrc.baidu.com/*
 // @match       https://imgsrc.baidu.com/*
+// @match       http://tiebapic.baidu.com/*
+// @match       https://tiebapic.baidu.com/*
 // @grant       GM_xmlHttpRequest
 // @grant       GM.xmlHttpRequest
 // @grant       GM_notification
-// @require 	https://code.jquery.com/jquery-latest.min.js
-// @require 	https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
-// @require 	https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @require     https://code.jquery.com/jquery-latest.min.js
+// @require     https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
+// @require     https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @author      Jeffrey.Deng
 // @namespace https://greasyfork.org/users/129338
 // ==/UserScript==
@@ -26,6 +28,7 @@
 // @date        2017.6.3
 
 // @更新日志
+// v.2.6        2.19.12.16     1.修改图片域名为tiebapic.baidu.com时下载图片显示“你查看的图片不存在的”的问题
 // v 2.5.1      2019.12.11     1.修复格式化数字排序未生效的问题
 // V 2.5        2019.12.2      1.修改为toastr提示方式
 //                             2.采用队列下载
@@ -388,9 +391,9 @@
     function initRightClickOpenSource() {
         var url = document.location.toString();
         var m = null;
-        if (!(m = url.match(/^https?:\/\/imgsrc\.baidu\.com\/forum\/pic\/item\/.+/i))) {
-            if ((m = url.match(/^(https?):\/\/(?:imgsrc|imgsa|\w+\.hiphotos)\.(?:bdimg|baidu)\.com\/(?:forum|album)\/.+\/(\w+\.(?:jpg|jpeg|gif|png|bmp|webp))(?:\?.+)?$/i))) {
-                document.location = m[1] + "://imgsrc.baidu.com/forum/pic/item/" + m[2];
+        if(!(m = url.match(/^https?:\/\/(imgsrc|tiebapic)\.baidu\.com\/forum\/pic\/item\/.+/i))){
+            if( (m = url.match(/^(https?):\/\/(imgsrc|imgsa|tiebapic|\w+\.hiphotos)\.(?:bdimg|baidu)\.com\/(?:forum|album)\/.+\/(\w+\.(?:jpg|jpeg|gif|png|bmp|webp))(?:\?.+)?$/i)) ){
+                document.location = m[1] + "://" + (m[2] == "tiebapic" ? "tiebapic" : "imgsrc") + ".baidu.com/forum/pic/item/" + m[3];
             }
         }
     }
@@ -459,14 +462,15 @@
                                 photo.folder_sort_index = photo_arr.length + 1;
                                 // 如果是用户上传的图片
                                 if (img.getAttribute("pic_type") == "0") {
-                                    photo.url = options.source_host + thumb_url.substring(thumb_url.lastIndexOf('/') + 1);
+                                    var urlMatcher = thumb_url.match(/^(https?):\/\/([a-zA-Z]+)\..*\/([^/]+)$/);
+                                    photo.url = urlMatcher[1] + "://" + (urlMatcher[2] == "tiebapic" ? "tiebapic" : "imgsrc") + ".baidu.com/forum/pic/item/" + urlMatcher[3];
                                 }
                                 // 如果是用户引用的图片
                                 else {
-                                    var m = thumb_url.match(/^(https?):\/\/(?:imgsrc|imgsa|\w+\.hiphotos)\.(?:bdimg|baidu)\.com\/(?:forum|album)\/.+\/(\w+\.(?:jpg|jpeg|gif|png|bmp|webp))(?:\?.+)?$/i);
+                                    var m = thumb_url.match(/^(https?):\/\/(imgsrc|imgsa|tiebapic|\w+\.hiphotos)\.(?:bdimg|baidu)\.com\/(?:forum|album)\/.+\/(\w+\.(?:jpg|jpeg|gif|png|bmp|webp))(?:\?.+)?$/i);
                                     // 如果引用的是贴吧图片
                                     if (m !== null) {
-                                        photo.url = options.source_host + m[2];
+                                        photo.url = m[1] + "://" + (m[2] == "tiebapic" ? "tiebapic" : "imgsrc") + ".baidu.com/forum/pic/item/" + m[3];
                                     } else {
                                         photo.url = thumb_url;
                                     }
