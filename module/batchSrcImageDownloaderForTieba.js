@@ -2,7 +2,7 @@
 // @name        批量下载贴吧原图
 // @name:zh     批量下载贴吧原图
 // @name:en     Batch srcImage downloader for tieba
-// @version     2.6
+// @version     2.6.1
 // @description   一键打包下载贴吧中一页的原图
 // @description:zh  一键打包下载贴吧中一页的原图
 // @description:en  Batch Download Src Image From Baidu Tieba
@@ -28,6 +28,9 @@
 // @date        2017.6.3
 
 // @更新日志
+// v.2.6.1      2.19.12.16     1.修改压缩包名称为帖子的标题
+//                               如果还是要以前的id作为压缩包名称，那么修改449行："packNameBy": "title",
+//                               将 packNameBy 的值 title 修改为 id, 再按 ctrl + s 保存。
 // v.2.6        2.19.12.16     1.修改图片域名为tiebapic.baidu.com时下载图片显示“你查看的图片不存在的”的问题
 // v 2.5.1      2019.12.11     1.修复格式化数字排序未生效的问题
 // V 2.5        2019.12.2      1.修改为toastr提示方式
@@ -443,7 +446,7 @@
             "type": 2,
             "minWidth": 100,
             "suffix": null,
-            "source_host": (document.location.href.indexOf("https") == -1 ? "http" : "https") + "://imgsrc.baidu.com/forum/pic/item/",
+            "packNameBy": "title", // "id" or "title"
             "callback": {
                 "parseFiles_callback": function (location_info, options) {
                     var photo_arr = [];
@@ -493,7 +496,7 @@
                         "url：" + location_info.source + "\r\n" +
                         "page：" + pn + "\r\n" +
                         "image_amount：" + photos.length + "\r\n";
-                    names.zipName = "tie_" + tie_id + (pn == 1 ? "" : ("_" + pn));
+                    names.zipName = (options.packNameBy == "id" ? ("tie_" + tie_id) : title) + (pn == 1 ? "" : ("_" + pn));
                     names.folderName = names.zipName;
                     names.prefix = tie_id + "_" + common_utils.paddingZero(pn, 3);
                     names.suffix = options.suffix;
