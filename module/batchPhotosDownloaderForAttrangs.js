@@ -2,7 +2,7 @@
 // @name        批量下载Attrangs照片
 // @name:zh     批量下载Attrangs照片
 // @name:en     Batch srcImage downloader for Attrangs
-// @version     0.5.1
+// @version     0.5.2
 // @description   一键批量下载Attrangs中的图片
 // @description:zh  一键批量下载Attrangs中的图片
 // @description:en  Batch Download Image From Attrangs
@@ -71,23 +71,32 @@
                 segments: a.pathname.replace(/^\//, '').split('/')
             };
         }
-        function ajaxDownload(url, callback, args) {
+        function ajaxDownload(url, callback, args, tryTimes) {
+            tryTimes = tryTimes || 0;
             var GM_download = GM.xmlHttpRequest || GM_xmlHttpRequest;
             GM_download({
                 method: 'GET',
                 responseType: 'blob',
                 url: url,
-                onreadystatechange: function(responseDetails) {
+                onreadystatechange: function (responseDetails) {
                     if (responseDetails.readyState === 4) {
                         if (responseDetails.status === 200 || responseDetails.status === 0) {
                             callback(responseDetails.response, args);
                         } else {
-                            callback(null, args);
+                            if (tryTimes++ == 3) {
+                                callback(null, args);
+                            } else {
+                                ajaxDownload(url, callback, args, tryTimes);
+                            }
                         }
                     }
                 },
-                onerror: function(responseDetails) {
-                    callback(null, args);
+                onerror: function (responseDetails) {
+                    if (tryTimes++ == 3) {
+                        callback(null, args);
+                    } else {
+                        ajaxDownload(url, callback, args, tryTimes);
+                    }
                     console.log(responseDetails.status);
                 }
             });
@@ -333,25 +342,28 @@
             options = $.extend(true, options, config);
             var location_info = options.callback.parseLocationInfo_callback(options);
             var files = options.callback.parseFiles_callback(location_info, options);
-
-            if (files && files.length > 0) {
-                if (options.isNeedConfirmDownload && confirm("是否下载 " + files.length + " 张图片")) {
-                    if (options.type == 1) {
-                        urlDownload(files, names, location_info, options);
-                    } else {
-                        var names = options.callback.makeNames_callback(files, location_info, options);
-                        ajaxDownloadAndZipFiles(files, names, location_info, options);
-                    }
-                }
-            } else {
-                toastr.error("未找到图片~", "");
+            if (!(files && files.promise)) {
+                files = $.when(files);
             }
+            files.done(function (files) {
+                if (files && files.length > 0) {
+                    if (!options.isNeedConfirmDownload || confirm("是否下载 " + files.length + " 张图片")) {
+                        if (options.type == 1) {
+                            urlDownload(files, names, location_info, options);
+                        } else {
+                            var names = options.callback.makeNames_callback(files, location_info, options);
+                            ajaxDownloadAndZipFiles(files, names, location_info, options);
+                        }
+                    }
+                } else {
+                    toastr.error("未找到图片~", "");
+                }
+            });
         } catch (e) {
             // GM_notification("批量下载照片 出现错误！", "");
             console.warn("批量下载照片 出现错误！, exception: ", e);
             toastr.error("批量下载照片 出现错误！", "");
         }
-
     }
 
     /** 下载 **/
