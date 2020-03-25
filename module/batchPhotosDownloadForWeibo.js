@@ -2,7 +2,7 @@
 // @name        批量下载微博原图、视频、livephoto
 // @name:zh     批量下载微博原图、视频、livephoto
 // @name:en     Batch Download Src Image From Weibo Card
-// @version     1.4
+// @version     1.5
 // @description   一键打包下载微博中一贴的原图、视频、livephoto
 // @description:zh  一键打包下载微博中一贴的原图、视频、livephoto
 // @description:en  Batch download weibo's source image
@@ -27,6 +27,7 @@
 // @date        2019.12.26
 
 // @更新日志
+// V 1.5        2020.03.26     1.支持只打印链接，仅在控制台打印链接（按F12打开控制台console），【建议先按F12打开控制台console，在点按钮】
 // V 1.4        2020.03.26     1.支持只下载链接，按钮【打包下载】：下载文件和链接，【下载链接】：仅下载链接
 // V 1.3        2020.01.26     1.修复bug
 // V 1.0        2019.12.26     1.支持打包下载用户一次动态的所有原图
@@ -294,10 +295,10 @@
                 return $.Deferred(function(dfd) {
                     var folder = file.location ? main_folder.folder(file.location) : main_folder;
                     var isSave = options.callback.beforeFileDownload_callback(file, location_info, options, zipFileLength, zip, main_folder, folder);
-                    if (isSave != false) {
+                    if (isSave !== false) {
                         common_utils.ajaxDownload(file.url, function (blob, file) {
                             var isSave = options.callback.eachFileOnload_callback(blob, file, location_info, options, zipFileLength, zip, main_folder, folder);
-                            if (isSave != false) {
+                            if (isSave !== false) {
                                 if (file.fileName) {
                                     folder.file(file.fileName, blob);
                                 } else {
@@ -316,13 +317,15 @@
                     notify_start.find(".toast-message").text("正在打包～ 第 " + zipFileLength + " 张" + (isSave ? "" : "跳过"));
                     resolveCallback && resolveCallback();   // resolve延迟对象
                     if (zipFileLength >= maxIndex) {
-                        options.callback.allFilesOnload_callback(files, names, location_info, options, zip, main_folder);
-                        zip.generateAsync({type: "blob"}).then(function (content) {
-                            options.callback.beforeZipFileDownload_callback(content, files, names, location_info, options, zip, main_folder);
-                        });
-                        // GM_notification({text: "打包下载完成！", title: names.zipName, highlight : true});
+                        var isDownloadZip = options.callback.allFilesOnload_callback(files, names, location_info, options, zip, main_folder);
+                        if (isDownloadZip !== false) {
+                            zip.generateAsync({type: "blob"}).then(function (content) {
+                                options.callback.beforeZipFileDownload_callback(content, files, names, location_info, options, zip, main_folder);
+                            });
+                            // GM_notification({text: "打包下载完成！", title: names.zipName, highlight : true});
+                            toastr.success("下载完成！", names.zipName, {"progressBar": false, timeOut: 0});
+                        }
                         notify_start.css("display", "none").remove();
-                        toastr.success("下载完成！", names.zipName, {"progressBar": false, timeOut: 0});
                     }
                 });
             };
@@ -424,8 +427,9 @@
     var addDownloadBtnToWeiboCard = function ($wb_card) {
         var $card_btn_list = $wb_card.find(".WB_feed_detail .WB_screen .layer_menu_list ul:nth-child(1)");
         if ($card_btn_list.find(".WB_card_photos_download").length == 0) {
-            $card_btn_list.append('<li class="WB_card_photos_download"><a>打包下载</a></li>');
-            $card_btn_list.append('<li class="WB_card_photos_download WB_card_photos_download_only_url"><a>下载链接</a></li>');
+            $card_btn_list.append('<li class="WB_card_photos_download" title="下载文件和链接"><a>打包下载</a></li>');
+            $card_btn_list.append('<li class="WB_card_photos_download WB_card_photos_download_only_download_url" title="仅下载链接"><a>下载链接</a></li>');
+            $card_btn_list.append('<li class="WB_card_photos_download WB_card_photos_download_only_print_url" title="仅在控制台打印链接（先按F12打开控制台console，在点按钮）"><a>打印链接</a></li>');
         }
     };
 
@@ -434,7 +438,11 @@
     });
     $("body").on("click", ".WB_cardwrap .WB_screen .layer_menu_list .WB_card_photos_download", function () {
         var $self = $(this);
-        unsafeWindow.downloadWeiboCardPhotos($self.closest(".WB_cardwrap"), {"only_download_url": $self.hasClass('WB_card_photos_download_only_url')});
+        var options = {"only_download_url": $self.hasClass('WB_card_photos_download_only_download_url'), "only_print_url": $self.hasClass('WB_card_photos_download_only_print_url')};
+        if (options.only_print_url) {
+            options.isNeedConfirmDownload = false;
+        }
+        unsafeWindow.downloadWeiboCardPhotos($self.closest(".WB_cardwrap"), options);
     });
 
     unsafeWindow.downloadWeiboCardPhotos = function (wb_card_node, options) {
@@ -442,7 +450,10 @@
         var config = {
             "$wb_card": $wb_card,
             "type": 2,
+            "isNeedConfirmDownload": true, // 下载前是否需要弹出确认框
+            "useQueueDownloadThreshold": 0,
             "only_download_url": false, // 是否仅下载链接，true: 只下链接，false：下载文件和链接
+            "only_print_url": false, // 是否仅在控制台打印链接（按F12打开控制台console）
             "suffix": null,
             "callback": {
                 "parseFiles_callback": function (location_info, options) {
@@ -673,8 +684,8 @@
                     main_folder.file("photo_url_list.txt", photo_urls_str);
                     options.failFiles = undefined;
                 },
-                "beforeFileDownload_callback": function (file, location_info, options, zipFileLength, zip, main_folder, folder) {
-                    if (options.only_download_url) {
+                "beforeFileDownload_callback": function (photo, location_info, options, zipFileLength, zip, main_folder, folder) {
+                    if (options.only_download_url || options.only_print_url) {
                         return false;
                     } else {
                         return true;
@@ -701,6 +712,16 @@
                             failPhotoListStr += (failFile.location + "/" + failFile.fileName + "\t" + failFile.url + "\r\n");
                         }
                         main_folder.file("photos_fail_list.txt", failPhotoListStr);
+                    }
+                    if (options.only_print_url) {
+                        console.log('--★-- print -- ' + names.folderName + ' ----★--');
+                        console.table(JSON.parse(JSON.stringify(photos)), ['location', 'url']);
+                        console.log('当url被省略可以复制下面的链接，也可从上面 >Array(' + photos.length + ') 查看');
+                        $.each(photos, function (i, photo) {
+                            console.log(photo.url);
+                        });
+                        toastr.success("已打印，按F12打开控制台console查看");
+                        return false;
                     }
                 }
             }
