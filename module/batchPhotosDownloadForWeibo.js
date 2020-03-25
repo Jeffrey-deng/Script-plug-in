@@ -27,7 +27,7 @@
 // @date        2019.12.26
 
 // @更新日志
-// V 1.4        2020.03.26     1.支持只下载链接，修改代码443行的 only_download_url 值为true，保存即可
+// V 1.4        2020.03.26     1.支持只下载链接，按钮【打包下载】：下载文件和链接，【下载链接】：仅下载链接
 // V 1.3        2020.01.26     1.修复bug
 // V 1.0        2019.12.26     1.支持打包下载用户一次动态的所有原图
 //                             2.支持下载18图
@@ -424,7 +424,8 @@
     var addDownloadBtnToWeiboCard = function ($wb_card) {
         var $card_btn_list = $wb_card.find(".WB_feed_detail .WB_screen .layer_menu_list ul:nth-child(1)");
         if ($card_btn_list.find(".WB_card_photos_download").length == 0) {
-            $card_btn_list.append('<li class="WB_card_photos_download"><a>下载</a></li>');
+            $card_btn_list.append('<li class="WB_card_photos_download"><a>打包下载</a></li>');
+            $card_btn_list.append('<li class="WB_card_photos_download WB_card_photos_download_only_url"><a>下载链接</a></li>');
         }
     };
 
@@ -432,7 +433,8 @@
         addDownloadBtnToWeiboCard($(this).closest(".WB_cardwrap"));
     });
     $("body").on("click", ".WB_cardwrap .WB_screen .layer_menu_list .WB_card_photos_download", function () {
-        unsafeWindow.downloadWeiboCardPhotos($(this).closest(".WB_cardwrap"));
+        var $self = $(this);
+        unsafeWindow.downloadWeiboCardPhotos($self.closest(".WB_cardwrap"), {"only_download_url": $self.hasClass('WB_card_photos_download_only_url')});
     });
 
     unsafeWindow.downloadWeiboCardPhotos = function (wb_card_node, options) {
