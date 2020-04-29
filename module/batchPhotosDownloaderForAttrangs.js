@@ -13,6 +13,7 @@
 // @match       https://cn.attrangs.com/*
 // @match       http://justone.co.kr/*
 // @match       http://www.justone.co.kr/*
+// @grant       GM.xmlHttpRequest
 // @grant       GM_xmlHttpRequest
 // @grant       GM_notification
 // @grant       GM_addStyle

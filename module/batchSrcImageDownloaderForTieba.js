@@ -13,6 +13,7 @@
 // @match       https://imgsrc.baidu.com/*
 // @match       http://tiebapic.baidu.com/*
 // @match       https://tiebapic.baidu.com/*
+// @grant       GM.xmlHttpRequest
 // @grant       GM_xmlHttpRequest
 // @grant       GM_notification
 // @require     https://code.jquery.com/jquery-latest.min.js

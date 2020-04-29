@@ -2,7 +2,7 @@
 // @name        批量下载微博原图、视频、livephoto
 // @name:zh     批量下载微博原图、视频、livephoto
 // @name:en     Batch Download Src Image From Weibo Card
-// @version     1.6
+// @version     1.6.1
 // @description   一键打包下载微博中一贴的原图、视频、livephoto
 // @description:zh  一键打包下载微博中一贴的原图、视频、livephoto
 // @description:en  Batch download weibo's source image
@@ -12,6 +12,7 @@
 // @match       https://*.sinaimg.cn/*
 // @match       http://*.sinaimg.com/*
 // @match       https://*.sinaimg.com/*
+// @grant       GM.xmlHttpRequest
 // @grant       GM_xmlHttpRequest
 // @grant       GM_notification
 // @grant       GM_addStyle
@@ -757,7 +758,7 @@
                             'mouseenter': function() {
                                 let $self = $(this);
                                 if ($self.attr('data-location') == 'photos') {
-                                    $preview_img.attr('src', $self.attr('href').replace('/large/', '/mw690/')).parent().css('visibility', 'visible');;
+                                    $preview_img.attr('src', $self.attr('href').replace('/large/', '/mw690/')).parent().css('visibility', 'visible');
                                 }
                             },
                             'mouseleave': function() {
