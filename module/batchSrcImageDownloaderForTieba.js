@@ -14,7 +14,6 @@
 // @match       http://tiebapic.baidu.com/*
 // @match       https://tiebapic.baidu.com/*
 // @grant       GM_xmlHttpRequest
-// @grant       GM.xmlHttpRequest
 // @grant       GM_notification
 // @require     https://code.jquery.com/jquery-latest.min.js
 // @require     https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js

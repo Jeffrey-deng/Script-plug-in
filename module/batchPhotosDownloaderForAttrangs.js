@@ -14,7 +14,6 @@
 // @match       http://justone.co.kr/*
 // @match       http://www.justone.co.kr/*
 // @grant       GM_xmlHttpRequest
-// @grant       GM.xmlHttpRequest
 // @grant       GM_notification
 // @grant       GM_addStyle
 // @require 	http://code.jquery.com/jquery-latest.js
@@ -526,21 +525,21 @@
                         //    kr_part_nodes_four = $('.detailPage .likeSlides').eq(0).find("a");
                         //}
 
-                        var complete_url_test = /^http:/;
+                        var complete_url_test = /^https?:/;
                         $.each(kr_part_nodes_one, function (i, a){
                             var photo = {};
                             photo.url = null;
                             if (!$(this).data("video")) {
                                 photo.url = $(this).data('href');
                                 if (!complete_url_test.test(photo.url)) {
-                                    photo.url = "http:" + photo.url;
+                                    photo.url = "https:" + photo.url;
                                     $(this).attr('data-href', photo.url)
                                 }
                                 photo.type = "image";
                             } else {
                                 photo.url = $(this).data('video');
                                 if (!complete_url_test.test(photo.url)) {
-                                    photo.url = "http:" + photo.url;
+                                    photo.url = "https:" + photo.url;
                                     $(this).attr('data-video', photo.url)
                                 }
                                 photo.type = "video";
@@ -552,7 +551,7 @@
 
                         var gif_url = $('head meta[property="og:image"]').attr("content");
                         photo_arr.push({
-                            "url": "http://atimg.sonyunara.com/files/attrangs/" + gif_url.substring(gif_url.indexOf('goods')),
+                            "url": "https://atimg.sonyunara.com/files/attrangs/" + gif_url.substring(gif_url.indexOf('goods')),
                             "location": "summary",
                             "folder_sort_index": photo_arr.length + 1
                         });

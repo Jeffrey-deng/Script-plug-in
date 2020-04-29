@@ -2,7 +2,7 @@
 // @name        批量下载微博原图、视频、livephoto
 // @name:zh     批量下载微博原图、视频、livephoto
 // @name:en     Batch Download Src Image From Weibo Card
-// @version     1.5
+// @version     1.6
 // @description   一键打包下载微博中一贴的原图、视频、livephoto
 // @description:zh  一键打包下载微博中一贴的原图、视频、livephoto
 // @description:en  Batch download weibo's source image
@@ -13,8 +13,8 @@
 // @match       http://*.sinaimg.com/*
 // @match       https://*.sinaimg.com/*
 // @grant       GM_xmlHttpRequest
-// @grant       GM.xmlHttpRequest
 // @grant       GM_notification
+// @grant       GM_addStyle
 // @require     https://code.jquery.com/jquery-latest.min.js
 // @require     https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
 // @require     https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
@@ -27,6 +27,7 @@
 // @date        2019.12.26
 
 // @更新日志
+// V 1.6        2020.04.29     1.打印链接直接用面板显示，感觉@indefined提供的代码
 // V 1.5        2020.03.26     1.支持只打印链接，仅在控制台打印链接（按F12打开控制台console），【建议先按F12打开控制台console，在点按钮】
 // V 1.4        2020.03.26     1.支持只下载链接，按钮【打包下载】：下载文件和链接，【下载链接】：仅下载链接
 // V 1.3        2020.01.26     1.修复bug
@@ -424,12 +425,43 @@
     //右键新标签打开图片直接打开原图
     initRightClickOpenSource();
 
+    GM_addStyle('.W_layer_pop {'+
+        '    position: absolute;'+
+        '    right: 4px;'+
+        '    top: 40px;'+
+        '    width: 70%;'+
+        '}'+
+        '.W_layer_pop > * {'+
+        '    padding: 15px;'+
+        '}'+
+        '.W_layer_pop .link-list ul li {'+
+        '    border-top: 1px solid #eee;'+
+        '    padding-top: 4px;'+
+        '    padding-bottom: 4px;'+
+        '}'+
+        '.W_layer_pop .link-list ul li:first-child {'+
+        '    border-top: unset;'+
+        '    padding-top: 0px;'+
+        '}'+
+        '.W_layer_pop .link-list ul li:last-child {'+
+        '    padding-bottom: 0px;'+
+        '}'+
+        '.W_layer_pop .link-list li a{'+
+        '    word-break: break-all;'+
+        '}'+
+        '.W_layer_pop .preview {'+
+        '    visibility:hidden;'+
+        '}'+
+        '.W_layer_pop .preview img {'+
+        '    width: 100%;'+
+        '}');
+
     var addDownloadBtnToWeiboCard = function ($wb_card) {
         var $card_btn_list = $wb_card.find(".WB_feed_detail .WB_screen .layer_menu_list ul:nth-child(1)");
         if ($card_btn_list.find(".WB_card_photos_download").length == 0) {
             $card_btn_list.append('<li class="WB_card_photos_download" title="下载文件和链接"><a>打包下载</a></li>');
             $card_btn_list.append('<li class="WB_card_photos_download WB_card_photos_download_only_download_url" title="仅下载链接"><a>下载链接</a></li>');
-            $card_btn_list.append('<li class="WB_card_photos_download WB_card_photos_download_only_print_url" title="仅在控制台打印链接（先按F12打开控制台console，在点按钮）"><a>打印链接</a></li>');
+            $card_btn_list.append('<li class="WB_card_photos_download WB_card_photos_download_only_print_url" title="仅打印出链接"><a>打印链接</a></li>');
         }
     };
 
@@ -453,7 +485,7 @@
             "isNeedConfirmDownload": true, // 下载前是否需要弹出确认框
             "useQueueDownloadThreshold": 0,
             "only_download_url": false, // 是否仅下载链接，true: 只下链接，false：下载文件和链接
-            "only_print_url": false, // 是否仅在控制台打印链接（按F12打开控制台console）
+            "only_print_url": false, // 是否仅在打印出链接
             "suffix": null,
             "callback": {
                 "parseFiles_callback": function (location_info, options) {
@@ -714,13 +746,38 @@
                         main_folder.file("photos_fail_list.txt", failPhotoListStr);
                     }
                     if (options.only_print_url) {
+                        const $pop = $('<div class="W_layer W_layer_pop"><div class="content link-list"><ul></ul></div><div class="content preview"><img></div></div>'),
+                              $link_ul = $pop.find('.link-list ul'),
+                              $preview_img = $pop.find('.preview img');
+                        $wb_card.find('.WB_feed_detail').append($pop);
+                        $.each(photos, function(i, photo) {
+                            $link_ul.append(`<li><a href="${photo.url}" target="_blank" download="${photo.fileName}" data-location="${photo.location}" class="clearfix">${photo.url}</a></li>`);
+                        });
+                        $link_ul.on({
+                            'mouseenter': function() {
+                                let $self = $(this);
+                                if ($self.attr('data-location') == 'photos') {
+                                    $preview_img.attr('src', $self.attr('href').replace('/large/', '/mw690/')).parent().css('visibility', 'visible');;
+                                }
+                            },
+                            'mouseleave': function() {
+                                $preview_img.attr('src', '').parent().css('visibility', 'hidden');
+                            }
+                        }, 'li a');
+                        function remove(ev) {
+                            if(!$pop[0].contains(ev.target)){
+                                $pop.remove();
+                                $('body').off("click", remove);
+                            }
+                        }
+                        $('body').on("click", remove);
                         console.log('--★-- print -- ' + names.folderName + ' ----★--');
                         console.table(JSON.parse(JSON.stringify(photos)), ['location', 'url']);
                         console.log('当url被省略可以复制下面的链接，也可从上面 >Array(' + photos.length + ') 查看');
                         $.each(photos, function (i, photo) {
                             console.log(photo.url);
                         });
-                        toastr.success("已打印，按F12打开控制台console查看");
+                        toastr.success("已打印");
                         return false;
                     }
                 }
