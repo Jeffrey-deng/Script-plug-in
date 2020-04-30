@@ -2,7 +2,7 @@
 // @name        批量下载贴吧原图
 // @name:zh     批量下载贴吧原图
 // @name:en     Batch srcImage downloader for tieba
-// @version     2.6.2
+// @version     2.6.3
 // @description   一键打包下载贴吧中一页的原图
 // @description:zh  一键打包下载贴吧中一页的原图
 // @description:en  Batch Download Src Image From Baidu Tieba
@@ -13,6 +13,8 @@
 // @match       https://imgsrc.baidu.com/*
 // @match       http://tiebapic.baidu.com/*
 // @match       https://tiebapic.baidu.com/*
+// @connect     baidu.com
+// @connect     bdimg.com
 // @grant       GM.xmlHttpRequest
 // @grant       GM_xmlHttpRequest
 // @grant       GM_notification

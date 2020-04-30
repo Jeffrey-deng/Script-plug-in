@@ -2,7 +2,7 @@
 // @name        批量下载微博原图、视频、livephoto
 // @name:zh     批量下载微博原图、视频、livephoto
 // @name:en     Batch Download Src Image From Weibo Card
-// @version     1.6.1
+// @version     1.6.3
 // @description   一键打包下载微博中一贴的原图、视频、livephoto
 // @description:zh  一键打包下载微博中一贴的原图、视频、livephoto
 // @description:en  Batch download weibo's source image
@@ -12,15 +12,22 @@
 // @match       https://*.sinaimg.cn/*
 // @match       http://*.sinaimg.com/*
 // @match       https://*.sinaimg.com/*
+// @connect     sinaimg.cn
+// @connect     weibocdn.com
+// @connect     weibo.com
+// @connect     miaopai.com
+// @connect     tbcache.com
+// @connect     youku.com
 // @grant       GM.xmlHttpRequest
 // @grant       GM_xmlHttpRequest
+// @grant       GM_download
 // @grant       GM_notification
 // @grant       GM_addStyle
 // @require     https://code.jquery.com/jquery-latest.min.js
 // @require     https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
 // @require     https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @author      Jeffrey.Deng
-// @namespace https://greasyfork.org/users/129338
+// @namespace   https://greasyfork.org/users/129338
 // ==/UserScript==
 
 // @weibo       http://weibo.com/3983281402
@@ -136,6 +143,7 @@
                 navigator.msSaveOrOpenBlob(content, fileName);
             } else {
                 var aLink = document.createElement('a');
+                aLink.className = 'download-temp-node';
                 aLink.download = fileName;
                 aLink.style = "display:none;";
                 var blob = new Blob([content]);
@@ -160,6 +168,7 @@
             } else {
                 aLink.download = url.substring(url.lastIndexOf('/') + 1);
             }
+            aLink.className = 'download-temp-node';
             aLink.target = "_blank";
             aLink.style = "display:none;";
             aLink.href = url;
@@ -426,34 +435,34 @@
     //右键新标签打开图片直接打开原图
     initRightClickOpenSource();
 
-    GM_addStyle('.W_layer_pop {'+
+    GM_addStyle('.download-link-pop {'+
         '    position: absolute;'+
         '    right: 4px;'+
         '    top: 40px;'+
         '    width: 70%;'+
         '}'+
-        '.W_layer_pop > * {'+
+        '.download-link-pop > * {'+
         '    padding: 15px;'+
         '}'+
-        '.W_layer_pop .link-list ul li {'+
+        '.download-link-pop .link-list ul li {'+
         '    border-top: 1px solid #eee;'+
         '    padding-top: 4px;'+
         '    padding-bottom: 4px;'+
         '}'+
-        '.W_layer_pop .link-list ul li:first-child {'+
+        '.download-link-pop .link-list ul li:first-child {'+
         '    border-top: unset;'+
         '    padding-top: 0px;'+
         '}'+
-        '.W_layer_pop .link-list ul li:last-child {'+
+        '.download-link-pop .link-list ul li:last-child {'+
         '    padding-bottom: 0px;'+
         '}'+
-        '.W_layer_pop .link-list li a{'+
+        '.download-link-pop .link-list li a{'+
         '    word-break: break-all;'+
         '}'+
-        '.W_layer_pop .preview {'+
+        '.download-link-pop .preview {'+
         '    visibility:hidden;'+
         '}'+
-        '.W_layer_pop .preview img {'+
+        '.download-link-pop .preview img {'+
         '    width: 100%;'+
         '}');
 
@@ -504,7 +513,7 @@
                         if (isFeedVideo) {
                             feedVideo.url = decodeURIComponent(video_data_str.match(/&video_src=([^&]+)/)[1]);
                             feedVideo.url.indexOf("//") == 0 && (feedVideo.url = "https:" + feedVideo.url);
-                            feedVideo.fileName = feedVideo.url.match(/\/([^/?]+(\.mp4)?)\?/)[1] + (RegExp.$2 ? "" : ".mp4");;
+                            feedVideo.fileName = feedVideo.url.match(/\/([^/?]+?(\.mp4)?)\?/)[1] + (RegExp.$2 ? "" : ".mp4");;
                             feedVideo.folder_sort_index = ++video_parse_index;
                             feedVideo.location = "videos";
                             feedVideoCoverImg.url = decodeURIComponent(video_data_str.match(/&cover_img=([^&]+)/)[1]);
@@ -532,7 +541,7 @@
                             });
                             if (video_source_list.length > 0) {
                                 feedVideo.url = video_source_list[0];
-                                feedVideo.fileName = feedVideo.url.match(/\/([^/?]+(\.mp4)?)\?/)[1] + (RegExp.$2 ? "" : ".mp4");
+                                feedVideo.fileName = feedVideo.url.match(/\/([^/?]+?(\.mp4)?)\?/)[1] + (RegExp.$2 ? "" : ".mp4");
                             }
                         }
                     }
@@ -547,7 +556,7 @@
                             weiboStoryVideo.url = decodeURIComponent(RegExp.$1);
                         }
                         if (weiboStoryVideo.url) {
-                            weiboStoryVideo.fileName = weiboStoryVideo.url.match(/\/([^/?]+(\.mp4)?)\?/)[1] + (RegExp.$2 ? "" : ".mp4");
+                            weiboStoryVideo.fileName = weiboStoryVideo.url.match(/\/([^/?]+?(\.mp4)?)\?/)[1] + (RegExp.$2 ? "" : ".mp4");
                             weiboStoryVideo.folder_sort_index = ++photo_parse_index;
                             weiboStoryVideo.location = "videos";
                             photo_arr.push(weiboStoryVideo);
@@ -747,12 +756,12 @@
                         main_folder.file("photos_fail_list.txt", failPhotoListStr);
                     }
                     if (options.only_print_url) {
-                        const $pop = $('<div class="W_layer W_layer_pop"><div class="content link-list"><ul></ul></div><div class="content preview"><img></div></div>'),
+                        const $pop = $('<div class="W_layer W_layer_pop download-link-pop"><div class="content link-list"><ul></ul></div><div class="content preview"><img></div></div>'),
                               $link_ul = $pop.find('.link-list ul'),
                               $preview_img = $pop.find('.preview img');
                         $wb_card.find('.WB_feed_detail').append($pop);
                         $.each(photos, function(i, photo) {
-                            $link_ul.append(`<li><a href="${photo.url}" target="_blank" download="${photo.fileName}" data-location="${photo.location}" class="clearfix">${photo.url}</a></li>`);
+                            $link_ul.append(`<li><a href="${photo.url}" target="_blank" download="${photo.fileName}" data-location="${photo.location}" class="clearfix" title="${photo.location == 'photos' ? '点击下载，右键链接另存为' : '右键链接另存为'}">${photo.url}</a></li>`);
                         });
                         $link_ul.on({
                             'mouseenter': function() {
@@ -763,10 +772,29 @@
                             },
                             'mouseleave': function() {
                                 $preview_img.attr('src', '').parent().css('visibility', 'hidden');
+                            },
+                            'click': function(e) {
+                                let $self = $(this), url = $self.attr('href'), fileName = $self.attr('download');
+                                if ($self.attr('data-location') == 'photos') {
+                                    let notify_download_media = toastr.success("正在下载～", names.zipName, {
+                                        "progressBar": false,
+                                        "hideDuration": 0,
+                                        "showDuration": 0,
+                                        "timeOut": 0,
+                                        "closeButton": false,
+                                    });
+                                    // GM_download({'url': url, 'name': fileName, 'saveAs': true});
+                                    common_utils.ajaxDownload(url, function (blob) {
+                                        common_utils.downloadBlobFile(blob, fileName);
+                                        notify_download_media.css("display", "none").remove();
+                                    });
+                                    // e.stopImmediatePropagation();
+                                    return false;
+                                }
                             }
                         }, 'li a');
                         function remove(ev) {
-                            if(!$pop[0].contains(ev.target)){
+                            if(!ev.target.classList.contains('download-temp-node') && !$pop[0].contains(ev.target)){
                                 $pop.remove();
                                 $('body').off("click", remove);
                             }

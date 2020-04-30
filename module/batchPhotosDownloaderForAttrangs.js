@@ -2,7 +2,7 @@
 // @name        批量下载Attrangs照片
 // @name:zh     批量下载Attrangs照片
 // @name:en     Batch srcImage downloader for Attrangs
-// @version     0.5.2
+// @version     0.5.3
 // @description   一键批量下载Attrangs中的图片
 // @description:zh  一键批量下载Attrangs中的图片
 // @description:en  Batch Download Image From Attrangs
@@ -13,6 +13,8 @@
 // @match       https://cn.attrangs.com/*
 // @match       http://justone.co.kr/*
 // @match       http://www.justone.co.kr/*
+// @connect     sonyunara.com
+// @connect     poxo.com
 // @grant       GM.xmlHttpRequest
 // @grant       GM_xmlHttpRequest
 // @grant       GM_notification
