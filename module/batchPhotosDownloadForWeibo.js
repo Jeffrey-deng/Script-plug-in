@@ -2,9 +2,9 @@
 // @name        批量下载微博原图、视频、livephoto
 // @name:zh     批量下载微博原图、视频、livephoto
 // @name:en     Batch Download Src Image From Weibo Card
-// @version     1.6.3
-// @description   一键打包下载微博中一贴的原图、视频、livephoto
-// @description:zh  一键打包下载微博中一贴的原图、视频、livephoto
+// @version     1.8
+// @description   一键打包下载微博中一贴的原图、视频、livephoto，收藏时本地自动备份
+// @description:zh  一键打包下载微博中一贴的原图、视频、livephoto，收藏时本地自动备份
 // @description:en  Batch download weibo's source image
 // @supportURL  https://imcoder.site/a/detail/HuXBzyC
 // @match       https://weibo.com/*
@@ -22,6 +22,9 @@
 // @grant       GM_xmlHttpRequest
 // @grant       GM_download
 // @grant       GM_notification
+// @grant       GM_setClipboard
+// @grant       GM_getValue
+// @grant       GM_setValue
 // @grant       GM_addStyle
 // @require     https://code.jquery.com/jquery-latest.min.js
 // @require     https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
@@ -35,6 +38,7 @@
 // @date        2019.12.26
 
 // @更新日志
+// V 1.8        2020.04.30     1.收藏时自动备份收藏到本地缓存(只备份图片链接)，这样博主删除微博仍能找到内容
 // V 1.6        2020.04.29     1.打印链接直接用面板显示，感觉@indefined提供的代码
 // V 1.5        2020.03.26     1.支持只打印链接，仅在控制台打印链接（按F12打开控制台console），【建议先按F12打开控制台console，在点按钮】
 // V 1.4        2020.03.26     1.支持只下载链接，按钮【打包下载】：下载文件和链接，【下载链接】：仅下载链接
@@ -435,11 +439,13 @@
     //右键新标签打开图片直接打开原图
     initRightClickOpenSource();
 
+    // 打包下载
     GM_addStyle('.download-link-pop {'+
         '    position: absolute;'+
         '    right: 4px;'+
         '    top: 40px;'+
         '    width: 70%;'+
+        '    z-index: 100;'+
         '}'+
         '.download-link-pop > * {'+
         '    padding: 15px;'+
@@ -458,6 +464,26 @@
         '}'+
         '.download-link-pop .link-list li a{'+
         '    word-break: break-all;'+
+        '}'+
+        '.download-link-pop .copy-all-link {'+
+        '    position: absolute;'+
+        '    bottom: -1px;'+
+        '    right: -42px;'+
+        '    font-weight: bold;'+
+        '    font-size: 12px;'+
+        '    width: 35px;'+
+        '    padding: 3px;'+
+        '    background: #fff;'+
+        '    border: 1px solid #ccc;'+
+        '    border-left-width: 0px;'+
+        '    border-bottom-right-radius: 3px;'+
+        '    border-top-right-radius: 3px;'+
+        '    text-align: center;'+
+        '    cursor: pointer;'+
+        '    visibility:hidden;'+
+        '}'+
+        '.download-link-pop:hover .copy-all-link {'+
+        '    visibility:visible;'+
         '}'+
         '.download-link-pop .preview {'+
         '    visibility:hidden;'+
@@ -612,8 +638,13 @@
                                 "mid": mid,
                                 "__rnd": new Date().getTime(),
                             }, function (response) {
-                                parsePhotosFromIds(pic_ids_str_m[1].split(","), pic_video_ids);
-                                parsePhotosFromIds(response.data);
+                                let picIds = pic_ids_str_m[1].split(",");
+                                response.data.pids.forEach(function(overPid) {
+                                    if (picIds.indexOf(overPid) == -1) {
+                                        picIds.push(overPid);
+                                    }
+                                });
+                                parsePhotosFromIds(picIds, pic_video_ids);
                                 deferred.resolve(photo_arr);
                             });
                             // $wb_detail.find(".WB_media_wrap .media_box ul .WB_pic .W_icon_tag_9p").trigger("click");
@@ -648,7 +679,6 @@
                 "makeNames_callback": function (photos, location_info, options) {
                     var names = {};
                     var isForward = $wb_card.attr("isforward") == "1" ? true : false;   // 是否是转发
-                    var users = [];
                     var cards = [];
                     names.infoName = "card_info.txt";
                     names.infoValue = "";
@@ -696,15 +726,16 @@
                             names.infoValue += (isForward ? "forward_" : "") + "user_" + key + "：" + value + "\r\n";
                         });
                         names.infoValue += "-----------------------------------" + "\r\n";
-                        users.push(user);
+                        card.user = user;
                         cards.push(card);
+                        return card;
                     };
-                    findCardInfo($wb_card.find(".WB_feed_detail .WB_detail"), false);   // 主贴的信息
+                    names.card = findCardInfo($wb_card.find(".WB_feed_detail .WB_detail"), false);   // 主贴的信息
                     if (isForward) {
                         // 转发的贴的信息
-                        findCardInfo($wb_card.find(".WB_feed_detail .WB_detail .WB_feed_expand .WB_expand"), true);
+                        names.forwardCard = findCardInfo($wb_card.find(".WB_feed_detail .WB_detail .WB_feed_expand .WB_expand"), true);
                     }
-                    names.zipName = users[0].nickname + "_" + users[0].uid + "_" + cards[0].id + "_" + (cards[0].name
+                    names.zipName = cards[0].user.nickname + "_" + cards[0].user.uid + "_" + cards[0].id + "_" + (cards[0].name
                             .replace(/\.\./g, "")
                             .replace(/\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDE4F]/g, "").replace(/[\u200b]+$/, "")
                             .replace(/(^[_-]+)|([_-]+$)/g, "")
@@ -756,7 +787,7 @@
                         main_folder.file("photos_fail_list.txt", failPhotoListStr);
                     }
                     if (options.only_print_url) {
-                        const $pop = $('<div class="W_layer W_layer_pop download-link-pop"><div class="content link-list"><ul></ul></div><div class="content preview"><img></div></div>'),
+                        const $pop = $('<div class="W_layer W_layer_pop download-link-pop"><div class="content link-list"><span class="copy-all-link" title="复制所有链接">复制</span><ul></ul></div><div class="content preview"><img></div></div>'),
                               $link_ul = $pop.find('.link-list ul'),
                               $preview_img = $pop.find('.preview img');
                         $wb_card.find('.WB_feed_detail').append($pop);
@@ -776,7 +807,7 @@
                             'click': function(e) {
                                 let $self = $(this), url = $self.attr('href'), fileName = $self.attr('download');
                                 if ($self.attr('data-location') == 'photos') {
-                                    let notify_download_media = toastr.success("正在下载～", names.zipName, {
+                                    let notify_download_media = toastr.success('正在下载图片～', '', {
                                         "progressBar": false,
                                         "hideDuration": 0,
                                         "showDuration": 0,
@@ -793,6 +824,10 @@
                                 }
                             }
                         }, 'li a');
+                        $pop.on('click', '.copy-all-link', function() {
+                            GM_setClipboard($link_ul[0].innerText);
+                            toastr.success('复制全部链接成功');
+                        });
                         function remove(ev) {
                             if(!ev.target.classList.contains('download-temp-node') && !$pop[0].contains(ev.target)){
                                 $pop.remove();
@@ -817,5 +852,161 @@
         }
         batchDownload(config);
     };
+
+    // 收藏备份
+    const KEY_FAV_BACKUP_GROUP = 'weibo_fav_backup_group';
+    var showFavWeiboRestoreBtn = function () {
+        $('.WB_cardwrap:not(.has-set-restore-btn) .WB_empty .WB_innerwrap p').prepend('<button class="restore-backup-fav-weibo" style="margin-right:15px;cursor:pointer;">查看备份</button>').closest('.WB_cardwrap').addClass('has-set-restore-btn');
+    }
+    $('body').on('click', '.WB_cardwrap .W_pages', function() {
+        setTimeout(function() {
+            showFavWeiboRestoreBtn();
+        }, 3000);
+        setTimeout(function() {
+            showFavWeiboRestoreBtn();
+        }, 4500);
+        setTimeout(function() {
+            showFavWeiboRestoreBtn();
+        }, 6000);
+    });
+    $('body').on('mouseenter', '.WB_cardwrap:not(.has-set-restore-btn) .WB_empty', function() {
+        showFavWeiboRestoreBtn();
+    });
+    $('body').on('click', '.WB_cardwrap .WB_feed_handle a[action-type="fl_favorite"]', function () {
+        var $self = $(this), $wb_card = $self.closest(".WB_cardwrap"), isHasFavorite = $self.attr('favorite') == '1';
+        if (!isHasFavorite) {
+            setTimeout(function() {
+                if (!unsafeWindow.confirm('是否将收藏中的链接备份到缓存，以防止博主删除？')) {
+                    return;
+                }
+                var options = {
+                    "only_print_url": true,
+                    "isNeedConfirmDownload": false,
+                    "callback": {
+                        "allFilesOnload_callback": function (photos, names, location_info, options, zip, main_folder) {
+                            let saveCard = {}, user = {}, picNames = [], livePhotos = [], card = names.forwardCard || names.card;
+                            saveCard.id = card.id;
+                            saveCard.mid = card.mid;
+                            saveCard.date = card.date;
+                            saveCard.text = card.text;
+                            user.uid = card.user.uid;
+                            user.nickname = card.user.nickname;
+                            $.each(photos, function (i, photo) {
+                                if (photo.location == 'photos') {
+                                    picNames.push(photo.fileName);
+                                } else if (photo.location == 'videos' && /\.mov$/.test(photo.fileName)) {
+                                    livePhotos.push(photo.fileName);
+                                }
+                            });
+                            saveCard.user = user;
+                            saveCard.photos = picNames;
+                            saveCard.livePhotos = livePhotos;
+                            let fav_backup_group = GM_getValue(KEY_FAV_BACKUP_GROUP, {});
+                            fav_backup_group[String(saveCard.mid)] = saveCard;
+                            GM_setValue(KEY_FAV_BACKUP_GROUP, fav_backup_group);
+                            toastr.success("收藏备份到本地成功~");
+                            return false;
+                        },
+                    }
+                };
+                unsafeWindow.downloadWeiboCardPhotos($wb_card, options);
+            }, 700);
+        } else {
+            let mid, isForward = $wb_card.attr("isforward") == "1" ? true : false;
+            if (!isForward) {
+                mid = $wb_card.find(".WB_feed_detail .WB_detail").find(".WB_from a").eq(0).prop("href").replace(/\?.*/, "").match(/\d+\/([A-Za-z0-9]+)$/)[1];
+            } else {
+                mid = $wb_card.find(".WB_feed_detail .WB_detail .WB_feed_expand .WB_expand").find(".WB_from a").eq(0).prop("href").replace(/\?.*/, "").match(/\d+\/([A-Za-z0-9]+)$/)[1];
+            }
+            let fav_backup_group = GM_getValue(KEY_FAV_BACKUP_GROUP, {});
+            delete fav_backup_group[String(mid)];
+            GM_setValue(KEY_FAV_BACKUP_GROUP, fav_backup_group);
+            toastr.success("删除收藏本地备份成功~");
+        }
+    });
+    $('body').on('click', '.WB_cardwrap .restore-backup-fav-weibo', function () {
+        var $self = $(this), $wb_card = $self.closest(".WB_cardwrap"), mid;
+        mid = $wb_card.find('.WB_empty').attr('mid');
+        if (!$self.hasClass('has-restore')) {
+            let card = GM_getValue(KEY_FAV_BACKUP_GROUP, {})[String(mid)];
+            if (card) {
+                $wb_card.append('<div class="WB_feed_detail clearfix" style="padding-top:0px;"><div class="WB_detail"><div class="WB_info" style="display:inline-block;"><a target="_blank"></a></div>' +
+                                '<div class="WB_from" style="display:inline-block;margin-left:10px"><a target="_blank"></a></div><div class="WB_text"><div><div></div>');
+                let $pop = $('<div class="W_layer W_layer_pop download-link-pop" style="position:relative;top:0px;right:0px;margin:0 auto;padding:0px 20px 10px;z-index:50;"><div class="content link-list"><span class="copy-all-link" title="复制所有链接">复制</span><ul></ul></div>' +
+                             '<div class="content preview" style="position: absolute;"><img></div></div>'),
+                    $link_ul = $pop.find('.link-list ul'), $preview_img = $pop.find('.preview img');
+                $wb_card.append($pop);
+                $wb_card.find('.WB_detail .WB_info a').text(card.user.nickname).attr('href', '//weibo.com/u/' + card.user.uid);
+                $wb_card.find('.WB_detail .WB_from a').text(card.date).attr('href', '//weibo.com/' + card.user.uid + '/' + card.id);
+                $wb_card.find('.WB_detail .WB_text').text(card.text);
+                $.each(card.photos, function(i, fileName) {
+                    let photo = {url: 'https://wx3.sinaimg.cn/large/' + fileName, fileName: fileName, location: 'photos'};
+                    $link_ul.append(`<li><a href="${photo.url}" target="_blank" download="${photo.fileName}" data-location="${photo.location}" class="clearfix" title="${photo.location == 'photos' ? '点击下载，右键链接另存为' : '右键链接另存为'}">${photo.url}</a></li>`);
+                });
+                $.each(card.livePhotos, function(i, fileName) {
+                    let photo = {url: 'https://video.weibo.com/media/play?livephoto=//us.sinaimg.cn/' + fileName + '&KID=unistore,videomovSrc', fileName: fileName, location: 'videos'};
+                    $link_ul.append(`<li><a href="${photo.url}" target="_blank" download="${photo.fileName}" data-location="${photo.location}" class="clearfix" title="${photo.location == 'photos' ? '点击下载，右键链接另存为' : '右键链接另存为'}">${photo.url}</a></li>`);
+                });
+                $link_ul.on({
+                    'mouseenter': function() {
+                        let $self = $(this);
+                        if ($self.attr('data-location') == 'photos') {
+                            $preview_img.attr('src', $self.attr('href').replace('/large/', '/mw690/')).parent().css('visibility', 'visible');
+                        }
+                    },
+                    'mouseleave': function() {
+                        $preview_img.attr('src', '').parent().css('visibility', 'hidden');
+                    },
+                    'click': function(e) {
+                        let $self = $(this), url = $self.attr('href'), fileName = $self.attr('download');
+                        if ($self.attr('data-location') == 'photos') {
+                            let notify_download_media = toastr.success('正在下载图片～', '', {
+                                "progressBar": false,
+                                "hideDuration": 0,
+                                "showDuration": 0,
+                                "timeOut": 0,
+                                "closeButton": false,
+                            });
+                            // GM_download({'url': url, 'name': fileName, 'saveAs': true});
+                            common_utils.ajaxDownload(url, function (blob) {
+                                common_utils.downloadBlobFile(blob, fileName);
+                                notify_download_media.css("display", "none").remove();
+                            });
+                            // e.stopImmediatePropagation();
+                            return false;
+                        }
+                    }
+                }, 'li a');
+                $pop.on('click', '.copy-all-link', function() {
+                    GM_setClipboard($link_ul[0].innerText);
+                    toastr.success('复制全部链接成功');
+                });
+                $self.text('删除备份').addClass('has-restore').attr('disabled', 'disabled');
+                setTimeout(function(){
+                    $self.removeAttr('disabled');
+                }, 600);
+            } else {
+                toastr.info("本地备份没有备份该收藏~");
+            }
+        } else {
+            let fav_backup_group = GM_getValue(KEY_FAV_BACKUP_GROUP, {});
+            delete fav_backup_group[String(mid)];
+            GM_setValue(KEY_FAV_BACKUP_GROUP, fav_backup_group);
+            toastr.success("删除收藏本地备份成功~");
+            $self.remove();
+        }
+    });
+    setTimeout(function() {
+        var tab_type_flag = $(".WB_main_c").find("div:nth-child(1)").attr("id");
+        if (tab_type_flag && /.*(favlistsearch)$/.test(tab_type_flag)) {
+            showFavWeiboRestoreBtn();
+        }
+    }, 2000);
+    setTimeout(function() {
+        var tab_type_flag = $(".WB_main_c").find("div:nth-child(1)").attr("id");
+        if (tab_type_flag && /.*(favlistsearch)$/.test(tab_type_flag)) {
+            showFavWeiboRestoreBtn();
+        }
+    }, 4000);
 
 })(document, jQuery);
