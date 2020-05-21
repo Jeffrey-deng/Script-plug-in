@@ -2,7 +2,7 @@
 // @name        批量下载Attrangs照片
 // @name:zh     批量下载Attrangs照片
 // @name:en     Batch srcImage downloader for Attrangs
-// @version     0.5.3
+// @version     0.5.4
 // @description   一键批量下载Attrangs中的图片
 // @description:zh  一键批量下载Attrangs中的图片
 // @description:en  Batch Download Image From Attrangs
@@ -201,7 +201,6 @@
                     if (tasks.length >= 0) {
                         deferred.fail(function () {
                             tasks = [];
-                            return;
                         });
                         deferred.done(handleNextTask);
                     }
@@ -256,6 +255,8 @@
             },
             "beforeFilesDownload_callback": function (files, names, location_info, options, zip, main_folder) {
             },
+            "beforeFileDownload_callback": function (file, location_info, options, zipFileLength, zip, main_folder, folder) {
+            },
             "eachFileOnload_callback": function (blob, file, location_info, options, zipFileLength, zip, main_folder, folder) {
             },
             "allFilesOnload_callback": function (files, names, location_info, options, zip, main_folder) {
@@ -286,31 +287,42 @@
             }
             options.callback.beforeFilesDownload_callback(files, names, location_info, options, zip, main_folder);
             var downloadFile = function (file, resolveCallback) {
-                common_utils.ajaxDownload(file.url, function (blob, file) {
+                return $.Deferred(function(dfd) {
                     var folder = file.location ? main_folder.folder(file.location) : main_folder;
-                    var isSave = options.callback.eachFileOnload_callback(blob, file, location_info, options, zipFileLength, zip, main_folder, folder);
-                    if (isSave != false) {
-                        if (file.fileName) {
-                            folder.file(file.fileName, blob);
-                        } else {
-                            var suffix = names.suffix || file.url.substring(file.url.lastIndexOf('.') + 1);
-                            file.fileName = names.prefix + "_" + common_utils.paddingZero(file.folder_sort_index, paddingZeroLength) + "." + suffix;
-                            folder.file(file.fileName, blob);
-                        }
+                    var isSave = options.callback.beforeFileDownload_callback(file, location_info, options, zipFileLength, zip, main_folder, folder);
+                    if (isSave !== false) {
+                        common_utils.ajaxDownload(file.url, function (blob, file) {
+                            var isSave = options.callback.eachFileOnload_callback(blob, file, location_info, options, zipFileLength, zip, main_folder, folder);
+                            if (isSave !== false) {
+                                if (file.fileName) {
+                                    folder.file(file.fileName, blob);
+                                } else {
+                                    var suffix = names.suffix || file.url.substring(file.url.lastIndexOf('.') + 1);
+                                    file.fileName = names.prefix + "_" + common_utils.paddingZero(file.folder_sort_index, paddingZeroLength) + "." + suffix;
+                                    folder.file(file.fileName, blob);
+                                }
+                            }
+                            dfd.resolveWith(file, [blob, folder, isSave]);
+                        }, file);
+                    } else {
+                        dfd.resolveWith(file, [null, folder, false]);
                     }
+                }).done(function(blob, folder, isSave){
                     zipFileLength++;
-                    notify_start.find(".toast-message").text("正在打包～ 第 " + zipFileLength + " 张");
+                    notify_start.find(".toast-message").text("正在打包～ 第 " + zipFileLength + " 张" + (isSave ? "" : "跳过"));
                     resolveCallback && resolveCallback();   // resolve延迟对象
                     if (zipFileLength >= maxIndex) {
-                        options.callback.allFilesOnload_callback(files, names, location_info, options, zip, main_folder);
-                        zip.generateAsync({type: "blob"}).then(function (content) {
-                            options.callback.beforeZipFileDownload_callback(content, files, names, location_info, options, zip, main_folder);
-                        });
-                        // GM_notification({text: "打包下载完成！", title: names.zipName, highlight : true});
+                        var isDownloadZip = options.callback.allFilesOnload_callback(files, names, location_info, options, zip, main_folder);
+                        if (isDownloadZip !== false) {
+                            zip.generateAsync({type: "blob"}).then(function (content) {
+                                options.callback.beforeZipFileDownload_callback(content, files, names, location_info, options, zip, main_folder);
+                            });
+                            // GM_notification({text: "打包下载完成！", title: names.zipName, highlight : true});
+                            toastr.success("下载完成！", names.zipName, {"progressBar": false, timeOut: 0});
+                        }
                         notify_start.css("display", "none").remove();
-                        toastr.success("下载完成！", names.zipName, {"progressBar": false}, {"progressBar": false, timeOut: 0});
                     }
-                }, file);
+                });
             };
             if (maxIndex < options.useQueueDownloadThreshold) {
                 // 并发数在useQueueDownloadThreshold内，直接下载
@@ -333,7 +345,7 @@
                 }
             }
         } else {
-            toastr.remove(notify_start, true);
+            notify_start.css("display", "none").remove();
             toastr.error("未解析到图片！", "错误", {"progressBar": false});
         }
     };
@@ -350,16 +362,21 @@
             files.done(function (files) {
                 if (files && files.length > 0) {
                     if (!options.isNeedConfirmDownload || confirm("是否下载 " + files.length + " 张图片")) {
+                        var names = options.callback.makeNames_callback(files, location_info, options);
+                        options.location_info = location_info;
+                        options.files = files;
+                        options.names = names;
                         if (options.type == 1) {
                             urlDownload(files, names, location_info, options);
                         } else {
-                            var names = options.callback.makeNames_callback(files, location_info, options);
                             ajaxDownloadAndZipFiles(files, names, location_info, options);
                         }
                     }
                 } else {
                     toastr.error("未找到图片~", "");
                 }
+            }).fail(function(message) {
+                toastr.error(message, "错误");
             });
         } catch (e) {
             // GM_notification("批量下载照片 出现错误！", "");
