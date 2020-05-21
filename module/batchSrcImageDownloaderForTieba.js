@@ -605,14 +605,15 @@
                     var names = {},
                         tie_id = location_info.file,
                         pn = location_info.params.pn || 1,
-                        title = $(".core_title_txt").attr("title");
+                        title = $(".core_title_txt").attr("title"),
+                        forum = ($('#container').find('.card_title a.card_title_fname').text() || '贴').replace(/^\s*|\s*$/g, '');
                     names.infoName = "tie_info.txt";
                     names.infoValue = "id：" + tie_id + "\r\n" +
                         "title：" + title + "\r\n" +
                         "url：" + location_info.source + "\r\n" +
                         "page：" + pn + "\r\n" +
                         "image_amount：" + photos.length + "\r\n";
-                    names.zipName = (options.packNameBy == "id" ? ("tie_" + tie_id) : (tie_id + '_' + title)) + ((options.findPhotoByApi || pn == 1) ? "" : ("_" + pn));
+                    names.zipName = (options.packNameBy == "id" ? ("tie_" + tie_id) : (forum + '_' + tie_id + '_' + title)) + ((options.findPhotoByApi || pn == 1) ? "" : ("_" + pn));
                     names.folderName = names.zipName;
                     names.prefix = tie_id + (options.findPhotoByApi ? "" : ("_" + common_utils.paddingZero(pn, 3)));
                     names.suffix = options.suffix;
@@ -620,6 +621,7 @@
                         'id': tie_id,
                         'title': title,
                         'pn': pn,
+                        'forum': forum
                     };
                     return names;
                 },
