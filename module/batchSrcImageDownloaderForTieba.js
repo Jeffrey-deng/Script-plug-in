@@ -3,8 +3,8 @@
 // @name:zh     批量下载贴吧原图
 // @name:en     Batch srcImage downloader for tieba
 // @version     3.0
-// @description   一键打包下载贴吧中一页的原图
-// @description:zh  一键打包下载贴吧中一页的原图
+// @description   一键打包下载贴吧中一贴的原图
+// @description:zh  一键打包下载贴吧中一贴的原图
 // @description:en  Batch Download Src Image From Baidu Tieba
 // @supportURL  https://imcoder.site/a/detail/HuXBzyC
 // @match       http://tieba.baidu.com/*
