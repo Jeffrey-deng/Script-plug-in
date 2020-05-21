@@ -583,14 +583,14 @@
                                             dfd.resolve();
                                         } else {
                                             dfd.reject('api返回错误');
-                                            finalDfd.resolve(findPhotosByPage());
                                         }
                                     }, 'json').fail(function () {
                                         dfd.reject('api返回错误');
-                                        finalDfd.resolve(findPhotosByPage());
                                     });
-                                }).fail(function () {
+                                }).fail(function (msg) {
+                                    console.warn(msg);
                                     options.findPhotoByApi = false;
+                                    finalDfd.resolve(findPhotosByPage());
                                 });
                             });
                             loadQueue.append(null);
