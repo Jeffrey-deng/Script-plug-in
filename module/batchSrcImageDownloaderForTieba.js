@@ -2,7 +2,7 @@
 // @name        批量下载贴吧原图
 // @name:zh     批量下载贴吧原图
 // @name:en     Batch srcImage downloader for tieba
-// @version     3.0
+// @version     3.0.1
 // @description   一键打包下载贴吧中一贴的原图
 // @description:zh  一键打包下载贴吧中一贴的原图
 // @description:en  Batch Download Src Image From Baidu Tieba
@@ -99,7 +99,9 @@
 
         function ajaxDownload(url, callback, args, tryTimes) {
             tryTimes = tryTimes || 0;
-            var GM_download = GM.xmlHttpRequest || GM_xmlHttpRequest;
+            var GM_download = GM.xmlHttpRequest || GM_xmlHttpRequest,
+                clearUrl = url.replace(/[&\?]?download_timestamp=\d+/, ''),
+                retryUrl = clearUrl + (clearUrl.indexOf('?') === -1 ? '?' : '&') + 'download_timestamp=' + new Date().getTime();
             GM_download({
                 method: 'GET',
                 responseType: 'blob',
@@ -113,13 +115,13 @@
                             } else if (tryTimes++ == 3) {
                                 callback(blob, args);
                             } else {
-                                ajaxDownload(url, callback, args, tryTimes);
+                                ajaxDownload(retryUrl, callback, args, tryTimes);
                             }
                         } else {
                             if (tryTimes++ == 3) {
                                 callback(null, args);
                             } else {
-                                ajaxDownload(url, callback, args, tryTimes);
+                                ajaxDownload(retryUrl, callback, args, tryTimes);
                             }
                         }
                     }
@@ -128,7 +130,7 @@
                     if (tryTimes++ == 3) {
                         callback(null, args);
                     } else {
-                        ajaxDownload(url, callback, args, tryTimes);
+                        ajaxDownload(retryUrl, callback, args, tryTimes);
                     }
                     console.log(responseDetails.status);
                 }

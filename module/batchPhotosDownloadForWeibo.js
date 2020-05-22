@@ -101,7 +101,9 @@
 
         function ajaxDownload(url, callback, args, tryTimes) {
             tryTimes = tryTimes || 0;
-            var GM_download = GM.xmlHttpRequest || GM_xmlHttpRequest;
+            var GM_download = GM.xmlHttpRequest || GM_xmlHttpRequest,
+                clearUrl = url.replace(/[&\?]?download_timestamp=\d+/, ''),
+                retryUrl = clearUrl + (clearUrl.indexOf('?') === -1 ? '?' : '&') + 'download_timestamp=' + new Date().getTime();
             GM_download({
                 method: 'GET',
                 responseType: 'blob',
@@ -109,12 +111,19 @@
                 onreadystatechange: function (responseDetails) {
                     if (responseDetails.readyState === 4) {
                         if (responseDetails.response != null && (responseDetails.status === 200 || responseDetails.status === 0)) {
-                            callback(responseDetails.response, args);
+                            var blob = responseDetails.response, size = blob && blob.size;
+                            if (size && (size / 1024 > 0)) {
+                                callback(blob, args);
+                            } else if (tryTimes++ == 3) {
+                                callback(blob, args);
+                            } else {
+                                ajaxDownload(retryUrl, callback, args, tryTimes);
+                            }
                         } else {
                             if (tryTimes++ == 3) {
                                 callback(null, args);
                             } else {
-                                ajaxDownload(url, callback, args, tryTimes);
+                                ajaxDownload(retryUrl, callback, args, tryTimes);
                             }
                         }
                     }
@@ -123,7 +132,7 @@
                     if (tryTimes++ == 3) {
                         callback(null, args);
                     } else {
-                        ajaxDownload(url, callback, args, tryTimes);
+                        ajaxDownload(retryUrl, callback, args, tryTimes);
                     }
                     console.log(responseDetails.status);
                 }
