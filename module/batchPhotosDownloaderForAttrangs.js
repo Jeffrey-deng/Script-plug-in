@@ -19,9 +19,11 @@
 // @grant       GM_xmlHttpRequest
 // @grant       GM_notification
 // @grant       GM_addStyle
+// @grant       GM_getResourceText
 // @require 	http://code.jquery.com/jquery-latest.js
 // @require 	https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
 // @require 	https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @resource    toastr_css https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.css
 // @author      Jeffrey.Deng
 // @namespace https://greasyfork.org/users/129338
 // ==/UserScript==
@@ -40,8 +42,6 @@
 // V 0.1        2018.4.1       打包成zip压缩包下载
 
 (function (document, $) {
-
-    $("head").append('<link rel="stylesheet" href="https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.css">');
 
     var common_utils = (function(document, $) {
         function parseURL(url) {
@@ -434,6 +434,8 @@
     }
 
     function addDownloadBtn() {
+        // css
+        GM_addStyle(GM_getResourceText('toastr_css'));
         GM_addStyle(
             ".goBottom { " +
             "    display: block; " +

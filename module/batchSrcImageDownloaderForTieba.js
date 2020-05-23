@@ -18,9 +18,12 @@
 // @grant       GM.xmlHttpRequest
 // @grant       GM_xmlHttpRequest
 // @grant       GM_notification
+// @grant       GM_addStyle
+// @grant       GM_getResourceText
 // @require     https://code.jquery.com/jquery-latest.min.js
 // @require     https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
 // @require     https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @resource    toastr_css https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.css
 // @author      Jeffrey.Deng
 // @namespace https://greasyfork.org/users/129338
 // ==/UserScript==
@@ -63,8 +66,6 @@
     //     factory(document, jQuery);
     // });
 })(function (document, $) {
-
-    $("head").append('<link rel="stylesheet" href="https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.css">');
 
     var common_utils = (function (document, $) {
         function parseURL(url) {
@@ -461,6 +462,9 @@
     //右键新标签打开图片直接打开原图
     initRightClickOpenSource();
 
+    // css
+    GM_addStyle(GM_getResourceText('toastr_css'));
+    // 添加按钮
     var $lis_nav = $('#tb_nav').find('ul').eq(0).find('li'),
         li_count = $lis_nav.length,
         $li_right = $lis_nav.eq(li_count - 1),

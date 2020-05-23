@@ -8,6 +8,7 @@
 // @description:en  Batch download weibo's source image
 // @supportURL  https://imcoder.site/a/detail/HuXBzyC
 // @match       https://weibo.com/*
+// @match       https://www.weibo.com/*
 // @match       https://d.weibo.com/*
 // @match       http://*.sinaimg.cn/*
 // @match       https://*.sinaimg.cn/*
@@ -28,9 +29,12 @@
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       GM_addStyle
+// @grant       GM_getResourceText
+// @grant       GM_registerMenuCommand
 // @require     https://code.jquery.com/jquery-latest.min.js
 // @require     https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
 // @require     https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @resource    toastr_css https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.css
 // @author      Jeffrey.Deng
 // @namespace   https://greasyfork.org/users/129338
 // ==/UserScript==
@@ -40,6 +44,7 @@
 // @date        2019.12.26
 
 // @更新日志
+// V 1.8.6      2020.05.23     1.修复www.weibo.com域名不起作用的问题
 // V 1.8.5      2020.05.15     1.修复视频下载失败，原因是不能弹出白名单确认框，解决办法是允许所有域名，弹出确认框后请点击总是允许所有域名，请放心点允许，代码绝对无后门
 // V 1.8.3      2020.05.12     1.优化收藏备份
 // V 1.8.2      2020.05.07     1.修复只有一张图片时，无法下载livephoto的问题
@@ -56,17 +61,15 @@
 //                             6.右键图片新标签直接打开原图
 
 (function(factory) {
-    console.time('ready_init_use_time');
+    console.time('『微博原图下载』/ready_init_use_time');
     $().ready(function(){
-        console.timeEnd('ready_init_use_time');
+        console.timeEnd('『微博原图下载』/ready_init_use_time');
         factory(document, jQuery);
     });
     // setTimeout(function(){
     //     factory(document, jQuery);
     // }, 1000);
 })(function (document, $) {
-
-    $("head").append('<link rel="stylesheet" href="https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.css">');
 
     var common_utils = (function (document, $) {
         function parseURL(url) {
@@ -466,7 +469,8 @@
     //右键新标签打开图片直接打开原图
     initRightClickOpenSource();
 
-    // 打包下载
+    // css
+    GM_addStyle(GM_getResourceText('toastr_css'));
     GM_addStyle('.download-link-pop {'+
         '    position: absolute;'+
         '    right: 4px;'+
@@ -636,6 +640,26 @@
             return $wb_card.find('> .WB_empty').length > 0;
         }
     };
+
+    // hack: 仪表盘控制栏添加按钮，暂时不启用
+    if (false && document.location.href.match(/^https:\/\/(www\.)?weibo\.com\/(?!u\/)\d{8,}\/(?!profile\/)\w{8,}\?.*$/)) {
+        GM_registerMenuCommand('下载', function() {
+            downloadWeiboCardPhotos($('.WB_cardwrap').eq(0));
+        }, 'd');
+        GM_registerMenuCommand('备份', function() {
+            let $wb_card = $('.WB_cardwrap').eq(0), mid = findWeiboCardMid($wb_card, true);
+            if (!mid) {
+                toastr.error('未找到mid，代码需要改进');
+                return;
+            };
+            if (isWeiboDelete($wb_card, true) && getFavWeiboBackup(mid)) {
+                if (!unsafeWindow.confirm('原博已被删除，这会删除之前的备份，是否继续？')) {
+                    return;
+                }
+            }
+            addFavWeiboBackup($wb_card);
+        }, 'b');
+    }
 
     $("body").on("click", ".WB_cardwrap .WB_screen .ficon_arrow_down", function () {
         addDownloadBtnToWeiboCard($(this).closest(".WB_cardwrap"));
