@@ -2,7 +2,7 @@
 // @name        批量下载贴吧原图
 // @name:zh     批量下载贴吧原图
 // @name:en     Batch srcImage downloader for tieba
-// @version     3.0.1
+// @version     3.1
 // @description   一键打包下载贴吧中一贴的原图
 // @description:zh  一键打包下载贴吧中一贴的原图
 // @description:en  Batch Download Src Image From Baidu Tieba
@@ -20,6 +20,7 @@
 // @grant       GM_notification
 // @grant       GM_addStyle
 // @grant       GM_getResourceText
+// @grant       GM_registerMenuCommand
 // @require     https://code.jquery.com/jquery-latest.min.js
 // @require     https://cdn.bootcss.com/toastr.js/2.1.3/toastr.min.js
 // @require     https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
@@ -33,6 +34,7 @@
 // @date        2017.6.3
 
 // @更新日志
+// v.3.0        2020.5.26      1.支持只下载楼主
 // v.3.0        2020.5.21      1.支持下载多页
 //                             2.支持下载被吞掉的图
 // v.2.6.1      2019.12.16     1.修改压缩包名称为帖子的标题
@@ -462,6 +464,11 @@
     //右键新标签打开图片直接打开原图
     initRightClickOpenSource();
 
+    var getPostAuthorId = function () { // 获取楼主ID
+        let userInfoStr = $('#j_p_postlist').children('.j_l_post').first().find('.d_name').attr('data-field');
+        return (userInfoStr && userInfoStr.match(/"user_id":(\d+)/) && RegExp.$1) || 0;
+    }
+
     // css
     GM_addStyle(GM_getResourceText('toastr_css'));
     // 添加按钮
@@ -483,12 +490,19 @@
         html = '<li class="j_tbnav_tab" style="cursor: pointer"><a class="j_tbnav_tab_a" id="batchDownloadBtn">下载</a> </li>';
         $li_right.after(html);
     }
-
-    $('#batchDownloadBtn').click(function () {
-        unsafeWindow.tiebaImagesDownload();
+    // 仪表盘控制栏添加按钮
+    GM_registerMenuCommand('下载图片', function() {
+        tiebaImagesDownload();
+    });
+    GM_registerMenuCommand('只下楼主', function() {
+        tiebaImagesDownload({"onlyLz": true});
     });
 
-    unsafeWindow.tiebaImagesDownload = function (options) {
+    $('#batchDownloadBtn').click(function () {
+        tiebaImagesDownload({"onlyLz": (document.location.href.indexOf('see_lz=1') !== -1 && confirm("是否只下载楼主的图片"))});
+    });
+
+    var tiebaImagesDownload = unsafeWindow.tiebaImagesDownload = function (options) {
         var config = {
             "type": 2,
             "minWidth": 100,
@@ -496,6 +510,7 @@
             "packNameBy": "title", // "id" or "title"
             "baiduLoadPhotosApi": "https://tieba.baidu.com/photo/bw/picture/guide",
             "findPhotoByApi": true,
+            "onlyLz": false,
             "callback": {
                 "parseFiles_callback": function (location_info, options) {
                     let findPhotosByPage = function () {
@@ -548,7 +563,7 @@
                                 return $.Deferred(function (dfd) {
                                     $.get(options.baiduLoadPhotosApi, {
                                         'tid': location_info.file,
-                                        'see_lz': 0,
+                                        'see_lz': options.onlyLz ? 1 : 0,
                                         'from_page': 0,
                                         // 'alt': 'jview',
                                         'next': 50,
